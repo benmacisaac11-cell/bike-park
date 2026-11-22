@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bike Park</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bike Park">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f3d2e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--g:#0f3d2e;--ok:#12813f;--chk:#b26a00;--no:#b3261e;--bg:#f4f5f2;--card:#fff;--ink:#17201b;--mut:#5d6b63}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);padding-bottom:env(safe-area-inset-bottom)}
+header{background:var(--g);color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 16px 14px}
+header h1{margin:0 0 10px;font-size:20px}
+form{display:flex;gap:8px}
+input[type=search]{flex:1;min-width:0;font-size:17px;padding:12px;border:0;border-radius:10px}
+button{font:inherit;border:0;border-radius:10px;padding:12px 14px;background:#fff;color:var(--g);font-weight:600}
+button.go{background:#ffd34d;color:#222}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{background:rgba(255,255,255,.16);color:#fff;padding:8px 12px;border-radius:999px;font-weight:500;font-size:14px}
+main{padding:12px 12px 40px;max-width:720px;margin:0 auto}
+#status{color:var(--mut);font-size:14px;margin:6px 4px}
+#headline{font-size:18px;font-weight:700;margin:10px 4px}
+#map{height:240px;border-radius:12px;margin:10px 0;display:none}
+.card{background:var(--card);border-radius:12px;padding:12px 14px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.08);border-left:6px solid #999}
+.card.ok{border-left-color:var(--ok)}.card.chk{border-left-color:var(--chk)}.card.no{border-left-color:var(--no)}
+.card h3{margin:0 0 2px;font-size:16px}
+.badge{display:inline-block;color:#fff;border-radius:6px;padding:2px 8px;font-size:13px;font-weight:700;margin-right:6px}
+.ok .badge{background:var(--ok)}.chk .badge{background:var(--chk)}.no .badge{background:var(--no)}
+.meta{color:var(--mut);font-size:14px;margin:4px 0}
+ul.why{margin:6px 0 8px 18px;padding:0;font-size:14px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.acts a,.acts button{flex:1 1 auto;text-align:center;text-decoration:none;background:#eaf0ec;color:var(--g);padding:10px 8px;border-radius:9px;font-weight:600;font-size:14px}
+.acts button.sel{background:var(--g);color:#fff}
+details{background:var(--card);border-radius:12px;padding:10px 14px;margin:10px 0}
+summary{font-weight:700}
+.pick button{display:block;width:100%;text-align:left;margin:6px 0;background:var(--card);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+small{color:var(--mut)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚲 Bike Park</h1>
+  <form id="f">
+    <input id="q" type="search" placeholder="Street, address or place" autocomplete="off" enterkeyhint="search">
+    <button class="go" type="submit">Find</button>
+  </form>
+  <div class="row"><button type="button" class="chip" id="here">📍 Near me</button><span id="saved"></span></div>
+</header>
+<main>
+  <div id="status">Type where you're going. I check the open street map, City of Melbourne's hoop register and what surrounds each rack, then rank the safest stand that fits the insurance rule.</div>
+  <div id="pick" class="pick"></div>
+  <div id="headline"></div>
+  <div id="map"></div>
+  <div id="list"></div>
+  <details id="rule">
+    <summary>Insurance rule: check on arrival</summary>
+    <p>Lock <b>through the frame</b> to an immovable object:</p>
+    <ul>
+      <li>steel or concrete, at least <b>4 cm thick</b> (about two fingers wide)</li>
+      <li><b>fixed into concrete or stone</b>: no bolts you could undo, no loose rack</li>
+      <li>a shape the bike <b>can't be lifted over</b> (a closed hoop, not a short post)</li>
+      <li>never left out for more than 24 hours</li>
+    </ul>
+    <p><small>The app can't measure a hoop. Green means the data says it is a proper steel stand; confirm the three points above when you get there, then tap "Good hoop" so it's remembered.</small></p>
+  </details>
+  <p><small>Data: OpenStreetMap contributors (includes racks verified on I Rode Here), City of Melbourne open data. Street View opens in Google Maps.</small></p>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+const COM='https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-/records';
+const GOOD=['stands','wide_stands','bollard','safe_loops','staple','hoop'];
+const THIN=['post_hoop','anchors','streetpod'];
+const SECURE=['building','shed','lockers','cage','bike_locker'];
+const BAD=['wall_loops','ground_slots','rack','handlebar_holder','saddle_holder','floor','front_wheel','wave','crossbar','upright_stands','lean_and_stick'];
+const TYPE_NAME={stands:'Steel hoops',wide_stands:'Wide steel hoops',bollard:'Bike bollard',safe_loops:'Loops with frame bar',wall_loops:'Wheel-only wall loops',ground_slots:'Ground slots (wheel only)',rack:'Wheel rack',building:'Bike room',shed:'Bike shed',lockers:'Bike lockers',cage:'Bike cage',wave:'Wave rack',handlebar_holder:'Handlebar hanger',two_tier:'Two-tier rack',informal:'Informal spot',post_hoop:'Ring on a sign pole'};
+let map,layer,dest=null,lastLabel='';
+
+function dist(a,b,c,d){const R=6371000,t=x=>x*Math.PI/180,p=t(c-a),l=t(d-b),h=Math.sin(p/2)**2+Math.cos(t(a))*Math.cos(t(c))*Math.sin(l/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function key(s){return s.lat.toFixed(4)+','+s.lon.toFixed(4)}
+async function getJSON(url,opt,ms=20000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{...opt,signal:c.signal});if(!r.ok)throw new Error(r.status);return await r.json()}finally{clearTimeout(t)}}
+
+async function geocode(q){
+  const u='https://photon.komoot.io/api/?limit=6&lang=en&lat=-37.8136&lon=144.9631&bbox=144.3,-38.6,145.9,-37.3&q='+encodeURIComponent(q);
+  try{const d=await getJSON(u,{},12000);const out=d.features.map(f=>{const p=f.properties,c=f.geometry.coordinates;
+    const name=[p.name,[p.housenumber,p.street].filter(Boolean).join(' '),p.district||p.city,p.postcode].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(', ');return{name,lat:c[1],lon:c[0]}});
+    if(out.length)return out}catch(e){}
+  const n=await getJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=au&viewbox=144.3,-37.3,145.9,-38.6&bounded=1&q='+encodeURIComponent(q),{},12000);
+  return n.map(x=>({name:x.display_name.split(',').slice(0,4).join(','),lat:+x.lat,lon:+x.lon}));
+}
+async function op(q,ms){let err;for(const ep of OVERPASS){try{return (await getJSON(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}},ms)).elements}catch(e){err=e}}throw err}
+function overpassRacks(lat,lon,r){return op(`[out:json][timeout:20];nwr(around:${r},${lat},${lon})[amenity=bicycle_parking];out center tags qt;`,22000)}
+function overpassContext(lat,lon,r){const a=`(around:${r+40},${lat},${lon})`;
+  return op(`[out:json][timeout:40];(node${a}[highway=street_lamp];node${a}[man_made=surveillance];nwr${a}[shop];nwr${a}[amenity~"^(cafe|restaurant|bar|pub|fast_food|bank|pharmacy|police|hospital|library|post_office|supermarket|cinema|marketplace)$"];nwr${a}[railway=station];nwr${a}[office];);out center tags qt;`,45000)}
+async function council(lat,lon,r){
+  const w=`type="Bicycle Rails" and within_distance(geo_point_2d, geom'POINT(${lon} ${lat})', ${r}m)`;
+  const d=await getJSON(COM+'?limit=100&select=description,locationdescription,conditionrating,geo_point_2d&where='+encodeURIComponent(w),{},15000);
+  return d.results||[];
+}
+
+function build(els,rails,lat,lon,r,ctx=true){
+  const P=e=>({lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,t:e.tags||{}});
+  const all=els.map(P).filter(e=>e.lat);
+  const racks=all.filter(e=>e.t.amenity==='bicycle_parking');
+  const lamps=all.filter(e=>e.t.highway==='street_lamp'),cams=all.filter(e=>e.t.man_made==='surveillance');
+  const active=all.filter(e=>e.t.shop||e.t.office||(e.t.amenity&&e.t.amenity!=='bicycle_parking'));
+  const stations=all.filter(e=>e.t.railway==='station');
+  const market=all.filter(e=>e.t.amenity==='marketplace'||e.t.amenity==='cinema');
+  const spots=racks.map(e=>({lat:e.lat,lon:e.lon,t:e.t,src:['OpenStreetMap'],rails:0}));
+  // council hoops: attach to a mapped rack within 15 m, else group into their own spots (8 m clusters)
+  for(const x of rails){const g=x.geo_point_2d;if(!g)continue;
+    let s=spots.find(s=>dist(s.lat,s.lon,g.lat,g.lon)<15);
+    if(!s){s=spots.find(s=>s.council&&dist(s.lat,s.lon,g.lat,g.lon)<8)}
+    if(!s){s={lat:g.lat,lon:g.lon,t:{},src:[],rails:0,council:true,where:x.locationdescription,desc:x.description};spots.push(s)}
+    if(!s.src.includes('City of Melbourne register'))s.src.push('City of Melbourne register');
+    s.rails++;s.cond=x.conditionrating;s.desc=s.desc||x.description}
+  const mine=LS.get('bp_verified',{});
+  for(const s of spots){
+    const t=s.t,bp=(t.bicycle_parking||'').toLowerCase(),why=[];let sc=50,cls;
+    s.d=dist(lat,lon,s.lat,s.lon);
+    const councilHoop=s.src.includes('City of Melbourne register');
+    if(GOOD.includes(bp)||councilHoop){cls='ok';sc+=20;why.push(councilHoop?`Council steel hoop${s.rails>1?'s ('+s.rails+')':''} on the City of Melbourne register`:(TYPE_NAME[bp]||bp)+': frame can be locked')}
+    else if(THIN.includes(bp)){cls='chk';sc+=8;why.push((TYPE_NAME[bp]||bp)+': holds the frame, but the ring is often thinner than 4 cm, so measure it or lock around the pole')}
+    else if(SECURE.includes(bp)){cls='chk';sc+=22;why.push((TYPE_NAME[bp]||bp)+': secure, but check you can get in and what you lock to inside')}
+    else if(BAD.includes(bp)){cls='no';sc-=40;why.push((TYPE_NAME[bp]||bp)+': does not hold the frame, so it fails the insurance rule')}
+    else{cls='chk';why.push(bp?`Stand type "${bp}": look before trusting it`:'Stand type not recorded: look before trusting it')}
+    s.title=councilHoop&&!bp?'Council steel hoop'+(s.rails>1?'s':''):(TYPE_NAME[bp]||'Bike parking');
+    if(GOOD.includes(bp)&&councilHoop){sc+=8}
+    const acc=t.access;if(acc&&!['yes','permissive','public'].includes(acc)){sc-=12;why.push('Access: '+acc)}
+    if(t.fee==='yes'){why.push('Paid')}
+    if(t.covered==='yes'){sc+=4;why.push('Under cover')}
+    const lamp=lamps.some(l=>dist(l.lat,l.lon,s.lat,s.lon)<20);
+    if(t.lit==='yes'||lamp){sc+=6;why.push('Street light close by')}
+    const cam=cams.some(c=>dist(c.lat,c.lon,s.lat,s.lon)<30);
+    if(cam||['yes','cctv','camera'].includes(t.surveillance)||t.supervised==='yes'){sc+=9;why.push(t.supervised==='yes'?'Supervised':'Camera mapped nearby')}
+    const n=active.filter(a=>dist(a.lat,a.lon,s.lat,s.lon)<35).length;
+    if(n){sc+=Math.min(14,n*2);why.push(n+' shop'+(n>1?'s':'')+' or venue'+(n>1?'s':'')+' within 35 m (people watching)')}else if(ctx){sc-=6;why.push('No shopfronts mapped within 35 m')}
+    if(stations.some(a=>dist(a.lat,a.lon,s.lat,s.lon)<70)){sc-=10;why.push('At a train station: racks here are a known theft spot')}
+    if(market.some(a=>dist(a.lat,a.lon,s.lat,s.lon)<50)){sc-=5;why.push('Market or cinema next door: bikes sit unattended for hours here')}
+    const cap=+t.capacity;if(cap>=2)why.push('Room for about '+cap+' bikes');
+    sc-=Math.min(14,s.d/20);
+    if(t.check_date||t['survey:date'])why.push('Checked on the ground '+(t.check_date||t['survey:date']));
+    const v=mine[key(s)];
+    if(v){if(v.ok){cls='ok';sc+=30;why.unshift('✓ You checked this one'+(v.note?': '+v.note:''))}else{cls='no';sc-=60;why.unshift('✗ You rejected this one'+(v.note?': '+v.note:''))}}
+    s.cls=cls;s.sc=Math.round(sc);s.why=why;s.v=v;
+  }
+  const rank={ok:0,chk:1,no:2};
+  return spots.filter(s=>s.d<=r).sort((a,b)=>rank[a.cls]-rank[b.cls]||b.sc-a.sc);
+}
+
+function render(spots,label,lat,lon,r,srcNote){
+  const ok=spots.filter(s=>s.cls==='ok'),chk=spots.filter(s=>s.cls==='chk');
+  const best=ok[0]||chk[0];
+  $('headline').textContent=!spots.length?`No bike parking mapped within ${r} m.`:ok.length?`Best: ${ok[0].title.toLowerCase()}, ${Math.round(ok[0].d)} m away`:chk.length?`Nothing confirmed. Closest to check: ${Math.round(chk[0].d)} m away`:`Only unsuitable racks within ${r} m.`;
+  $('status').innerHTML=`<b>${esc(label)}</b><br>${srcNote} · within ${r} m · ${ok.length} likely OK, ${chk.length} to check, ${spots.length-ok.length-chk.length} unsuitable`;
+  $('list').innerHTML=spots.slice(0,25).map((s,i)=>{
+    const badge={ok:'Likely OK',chk:'Check first',no:'Not suitable'}[s.cls],ll=s.lat.toFixed(6)+','+s.lon.toFixed(6);
+    return `<div class="card ${s.cls}"><h3><span class="badge">${badge}</span>${esc(s.title)}</h3>
+    <div class="meta">${Math.round(s.d)} m from your spot · safety score ${Math.max(0,Math.min(100,s.sc))}/100${s.where?' · '+esc(s.where.split(',')[0]):''}</div>
+    <ul class="why">${s.why.map(w=>'<li>'+esc(w)+'</li>').join('')}</ul>
+    <div class="acts"><a target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll}">Street View</a>
+    <a target="_blank" rel="noopener" href="https://maps.apple.com/?daddr=${ll}&dirflg=w">Walk there</a>
+    <button data-v="1" data-k="${key(s)}" class="${s.v&&s.v.ok?'sel':''}">✓ Good hoop</button><button data-v="0" data-k="${key(s)}" class="${s.v&&!s.v.ok?'sel':''}">✗ No good</button></div></div>`}).join('')
+    +(spots.length?`<div class="acts" style="margin:14px 0"><button id="save">★ Save "${esc(label.split(',')[0])}" to my places</button><a target="_blank" rel="noopener" href="https://irodehere.com">Photos on I Rode Here</a></div>`:'');
+  $('map').style.display='block';
+  if(!map){map=L.map('map',{zoomControl:false,attributionControl:false});L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);layer=L.layerGroup().addTo(map)}
+  layer.clearLayers();
+  L.marker([lat,lon]).addTo(layer).bindPopup('You are going here');
+  const col={ok:'#12813f',chk:'#b26a00',no:'#b3261e'};
+  spots.slice(0,40).forEach(s=>L.circleMarker([s.lat,s.lon],{radius:s===best?11:7,color:'#fff',weight:2,fillColor:col[s.cls],fillOpacity:1}).addTo(layer).bindPopup(esc(s.title)+' · '+Math.round(s.d)+' m'));
+  const pts=[[lat,lon],...spots.slice(0,8).map(s=>[s.lat,s.lon])];
+  map.invalidateSize();map.fitBounds(L.latLngBounds(pts).pad(0.25),{maxZoom:18});
+}
+
+async function search(lat,lon,label){
+  dest={lat,lon,label};lastLabel=label;$('pick').innerHTML='';$('list').innerHTML='';$('headline').textContent='';
+  $('status').textContent='Checking racks around '+label+'…';
+  const id=(window._run=(window._run||0)+1);let els=[],rails=[],note=[];
+  const [o,c]=await Promise.allSettled([overpassRacks(lat,lon,500),council(lat,lon,500)]);
+  if(id!==window._run)return;
+  if(o.status==='fulfilled'){els=o.value;note.push('Street map ✓')}else note.push('Street map unavailable');
+  if(c.status==='fulfilled'){rails=c.value;note.push(rails.length?'Council register ✓':'Outside the City of Melbourne register')}else note.push('Council register unavailable');
+  if(o.status!=='fulfilled'&&c.status!=='fulfilled'){$('status').textContent='Both data sources failed. Check your connection and try again.';return}
+  const pickR=ctx=>{let r=250,sp=build(els,rails,lat,lon,r,ctx);if(!sp.some(s=>s.cls==='ok')){r=500;sp=build(els,rails,lat,lon,r,ctx)}return r};
+  let r=pickR(false);
+  window._last={els,rails,lat,lon,r,label,ctx:false,note:note.join(' · ')+' · checking surroundings…'};rerender();
+  try{const x=await overpassContext(lat,lon,r);if(id!==window._run)return;els=els.concat(x);window._last={els,rails,lat,lon,r,label,ctx:true,note:note.join(' · ')+' · Surroundings ✓'}}
+  catch(e){if(id!==window._run)return;window._last.note=note.join(' · ')+' · surroundings unavailable (ranked on stand type and distance only)'}
+  rerender();
+}
+function rerender(){const l=window._last;if(l)render(build(l.els,l.rails,l.lat,l.lon,l.r,l.ctx),l.label,l.lat,l.lon,l.r,l.note)}
+
+function drawSaved(){const s=LS.get('bp_places',[]);$('saved').innerHTML=s.map((p,i)=>`<button type="button" class="chip" data-i="${i}">${esc(p.name)}</button>`).join(' ')}
+$('saved').addEventListener('click',e=>{const i=e.target.dataset.i;if(i==null)return;const p=LS.get('bp_places',[])[i];$('q').value=p.name;search(p.lat,p.lon,p.name)});
+$('saved').addEventListener('contextmenu',e=>{const i=e.target.dataset.i;if(i==null)return;e.preventDefault();const s=LS.get('bp_places',[]);if(confirm('Remove "'+s[i].name+'" from my places?')){s.splice(i,1);LS.set('bp_places',s);drawSaved()}});
+$('f').addEventListener('submit',async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').blur();
+  $('status').textContent='Looking up "'+q+'"…';$('pick').innerHTML='';
+  try{const g=await geocode(q);if(!g.length){$('status').textContent='Couldn\'t find that. Try adding the suburb.';return}
+    if(g.length>1){$('pick').innerHTML='<small>Not the right one? Pick another:</small>'+g.slice(1,5).map((x,i)=>`<button type="button" data-g="${i+1}">${esc(x.name)}</button>`).join('');window._geo=g}
+    await search(g[0].lat,g[0].lon,g[0].name);
+    if(g.length>1){$('pick').innerHTML='<details><summary>Wrong place? Other matches</summary>'+g.slice(1,5).map((x,i)=>`<button type="button" data-g="${i+1}">${esc(x.name)}</button>`).join('')+'</details>'}
+  }catch(err){$('status').textContent='Address lookup failed. Check your connection and try again.'}});
+$('pick').addEventListener('click',e=>{const i=e.target.dataset.g;if(i==null)return;const x=window._geo[i];search(x.lat,x.lon,x.name)});
+$('here').addEventListener('click',()=>{if(!navigator.geolocation){$('status').textContent='Location is not available in this browser.';return}
+  $('status').textContent='Finding where you are…';
+  navigator.geolocation.getCurrentPosition(p=>search(p.coords.latitude,p.coords.longitude,'Where I am now'),()=>{$('status').textContent='Location was blocked. Allow it in Settings, or type the street instead.'},{enableHighAccuracy:true,timeout:15000})});
+$('list').addEventListener('click',e=>{const b=e.target;
+  if(b.id==='save'){const name=prompt('Name for this place',lastLabel.split(',')[0]);if(!name)return;const s=LS.get('bp_places',[]);s.push({name,lat:dest.lat,lon:dest.lon});LS.set('bp_places',s);drawSaved();b.textContent='★ Saved';return}
+  if(b.dataset.k==null)return;const m=LS.get('bp_verified',{}),k=b.dataset.k,ok=b.dataset.v==='1';
+  if(m[k]&&m[k].ok===ok){delete m[k]}else{const note=prompt(ok?'Note for next time (optional), e.g. "outside the cafe window"':'What was wrong with it? (optional)','')||'';m[k]={ok,note,at:new Date().toISOString().slice(0,10)}}
+  LS.set('bp_verified',m);rerender()});
+drawSaved();
+</script>
+</body>
+</html>
