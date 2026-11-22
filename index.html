@@ -4,227 +4,628 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bike Park</title>
+<meta name="description" content="Find the safest place to lock a bike near any Victorian address.">
+<meta name="theme-color" content="#14532d">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Bike Park">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0f3d2e">
+<meta name="apple-mobile-web-app-title" content="Bike Park">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="icon" href="icon-180.png">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet.css">
 <style>
-:root{--g:#0f3d2e;--ok:#12813f;--chk:#b26a00;--no:#b3261e;--bg:#f4f5f2;--card:#fff;--ink:#17201b;--mut:#5d6b63}
+:root{--g:#14532d;--g2:#166534;--bg:#f3f5f2;--card:#fff;--ink:#16201a;--mute:#5d6b62;--line:#dfe5df;--good:#15803d;--ok:#b45309;--bad:#b91c1c;--chip:#e7efe8}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1511;--card:#18211b;--ink:#eef3ee;--mute:#9fb0a4;--line:#2a372e;--chip:#22302a;--good:#4ade80;--ok:#fbbf24;--bad:#f87171}}
 *{box-sizing:border-box}
-body{margin:0;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);padding-bottom:env(safe-area-inset-bottom)}
-header{background:var(--g);color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 16px 14px}
-header h1{margin:0 0 10px;font-size:20px}
-form{display:flex;gap:8px}
-input[type=search]{flex:1;min-width:0;font-size:17px;padding:12px;border:0;border-radius:10px}
-button{font:inherit;border:0;border-radius:10px;padding:12px 14px;background:#fff;color:var(--g);font-weight:600}
-button.go{background:#ffd34d;color:#222}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.chip{background:rgba(255,255,255,.16);color:#fff;padding:8px 12px;border-radius:999px;font-weight:500;font-size:14px}
-main{padding:12px 12px 40px;max-width:720px;margin:0 auto}
-#status{color:var(--mut);font-size:14px;margin:6px 4px}
-#headline{font-size:18px;font-weight:700;margin:10px 4px}
-#map{height:240px;border-radius:12px;margin:10px 0;display:none}
-.card{background:var(--card);border-radius:12px;padding:12px 14px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.08);border-left:6px solid #999}
-.card.ok{border-left-color:var(--ok)}.card.chk{border-left-color:var(--chk)}.card.no{border-left-color:var(--no)}
-.card h3{margin:0 0 2px;font-size:16px}
-.badge{display:inline-block;color:#fff;border-radius:6px;padding:2px 8px;font-size:13px;font-weight:700;margin-right:6px}
-.ok .badge{background:var(--ok)}.chk .badge{background:var(--chk)}.no .badge{background:var(--no)}
-.meta{color:var(--mut);font-size:14px;margin:4px 0}
-ul.why{margin:6px 0 8px 18px;padding:0;font-size:14px}
-.acts{display:flex;gap:8px;flex-wrap:wrap}
-.acts a,.acts button{flex:1 1 auto;text-align:center;text-decoration:none;background:#eaf0ec;color:var(--g);padding:10px 8px;border-radius:9px;font-weight:600;font-size:14px}
-.acts button.sel{background:var(--g);color:#fff}
-details{background:var(--card);border-radius:12px;padding:10px 14px;margin:10px 0}
-summary{font-weight:700}
-.pick button{display:block;width:100%;text-align:left;margin:6px 0;background:var(--card);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-small{color:var(--mut)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--g);color:#fff;padding:calc(env(safe-area-inset-top) + 12px) 14px 12px;position:relative;z-index:1000}
+header h1{margin:0 0 8px;font-size:19px;letter-spacing:.2px}
+.search{display:flex;gap:8px}
+.search input{flex:1;min-width:0;font-size:17px;padding:12px 14px;border:0;border-radius:12px;background:#fff;color:#111;outline:0;-webkit-appearance:none;appearance:none}
+.search button{flex:none;border:0;border-radius:12px;background:#facc15;color:#1b1b1b;font-weight:700;font-size:15px;padding:0 14px}
+#sugg{position:absolute;left:14px;right:14px;background:var(--card);color:var(--ink);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);overflow:auto;max-height:50vh;margin-top:6px}
+#sugg button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:13px 14px;font-size:16px;color:inherit}
+#sugg button:last-child{border-bottom:0}
+main{padding:12px 14px calc(env(safe-area-inset-bottom) + 30px);max-width:640px;margin:0 auto}
+.chips{display:flex;gap:8px;margin:2px 0 12px;flex-wrap:wrap}
+.chips button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:9px 14px;font-size:15px}
+.chips button.on{background:var(--g2);border-color:var(--g2);color:#fff;font-weight:600}
+.lbl{font-size:13px;color:var(--mute);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.6px}
+.where{margin:4px 0 10px;font-size:15px}
+.where b{font-size:17px}
+.tier{display:block;color:var(--mute);margin-top:2px}
+.card{background:var(--card);border-radius:16px;padding:14px;margin:0 0 12px;border:1px solid var(--line)}
+.card.top{border-width:2px}
+.card.good.top{border-color:var(--good)}.card.ok.top{border-color:var(--ok)}.card.bad.top{border-color:var(--bad)}
+.badge{display:inline-block;font-weight:700;font-size:13px;border-radius:999px;padding:3px 10px;color:#fff}
+.good .badge{background:#15803d}.ok .badge{background:#b45309}.bad .badge{background:#b91c1c}
+.card h2{margin:8px 0 2px;font-size:19px}
+.dist{color:var(--mute);font-size:15px}
+#nm:not(:empty){display:block}
+.type{margin:10px 0 6px;font-weight:600}
+ul.why{list-style:none;margin:6px 0 10px;padding:0}
+ul.why li{padding:2px 0 2px 24px;position:relative;font-size:15px}
+ul.why li:before{position:absolute;left:0;top:2px;font-weight:700}
+ul.why li.p:before{content:"✓";color:var(--good)}
+ul.why li.m:before{content:"!";color:var(--bad);left:5px}
+ul.why li.n:before{content:"•";color:var(--mute);left:5px}
+.arrive{background:var(--chip);border-radius:12px;padding:10px 12px;font-size:15px;margin:8px 0 12px}
+.arrive b{display:block;margin-bottom:4px}
+.arrive ol{margin:0;padding-left:20px}
+.row{display:flex;gap:8px;margin-top:8px}
+.row>*{flex:1;text-align:center;border-radius:12px;padding:12px 6px;font-size:16px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);text-decoration:none}
+.row .pri{background:var(--g2);border-color:var(--g2);color:#fff}
+.row .on{background:var(--chip);border-color:var(--good)}
+.sv{width:100%;height:280px;border:0;border-radius:12px;margin-top:10px;background:#000;display:block}
+.svnote{font-size:14px;color:var(--mute);margin:6px 0 2px}
+.svnote a{color:inherit;font-weight:600}
+#doorsv{margin:-6px 0 12px}
+.warn{border:2px solid var(--ok);border-radius:14px;padding:10px 12px;margin:0 0 12px;font-size:15px}
+.warn a{color:inherit;font-weight:700}
+#map{height:300px;border-radius:16px;margin:0 0 8px;border:1px solid var(--line);z-index:1}
+.mapbar{display:flex;gap:8px;margin:0 0 14px}
+.mapbar button{flex:1}
+.pinw{width:40px;height:40px;display:flex;align-items:center;justify-content:center}
+.mapbar button,.link{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 12px;font-size:15px}
+.mapbar button.on{background:#facc15;color:#111;border-color:#facc15;font-weight:600}
+.opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 12px;margin:0 0 8px;color:var(--ink);font-size:15px}
+.opt .n,.pin{flex:none;width:28px;height:28px;border-radius:50%;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.n.good,.pin.good{background:#15803d}.n.ok,.pin.ok{background:#b45309}.n.bad,.pin.bad{background:#b91c1c}
+.pin.sel{outline:3px solid #facc15}
+.opt span.t{flex:1;min-width:0}
+.opt small{display:block;color:var(--mute)}
+.door{width:22px;height:22px;border-radius:50% 50% 50% 0;background:#2563eb;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+details{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin:14px 0}
+summary{font-weight:700;font-size:16px}
+details ul{padding-left:20px;margin:6px 0 2px}
+details li{margin:5px 0}
+.none h2{margin:0 0 6px}
+.recent button{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 8px;font-size:16px;color:var(--ink)}
+.hint{color:var(--mute);font-size:15px;margin:8px 0 14px}
+footer{color:var(--mute);font-size:12px;margin-top:18px;text-align:center}
+footer a{color:inherit}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:999px;font-size:15px;z-index:2000;display:none;max-width:90%}
 </style>
 </head>
 <body>
 <header>
-  <h1>🚲 Bike Park</h1>
-  <form id="f">
-    <input id="q" type="search" placeholder="Street, address or place" autocomplete="off" enterkeyhint="search">
-    <button class="go" type="submit">Find</button>
+  <h1>Bike Park</h1>
+  <form class="search" id="form" autocomplete="off">
+    <input id="q" type="search" inputmode="search" enterkeyhint="search" placeholder="Where are you going?" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Destination">
+    <button type="button" id="near">Near me</button>
   </form>
-  <div class="row"><button type="button" class="chip" id="here">📍 Near me</button><span id="saved"></span></div>
+  <div id="sugg" hidden></div>
 </header>
 <main>
-  <div id="status">Type where you're going. I check the open street map, City of Melbourne's hoop register and what surrounds each rack, then rank the safest stand that fits the insurance rule.</div>
-  <div id="pick" class="pick"></div>
-  <div id="headline"></div>
-  <div id="map"></div>
-  <div id="list"></div>
+  <div class="lbl">How long will the bike be there?</div>
+  <div class="chips" id="modes">
+    <button data-m="quick">Quick stop</button>
+    <button data-m="hours">A few hours</button>
+    <button data-m="long">Evening or all day</button>
+  </div>
+  <div id="out"></div>
   <details id="rule">
-    <summary>Insurance rule: check on arrival</summary>
-    <p>Lock <b>through the frame</b> to an immovable object:</p>
+    <summary>The lock-up rule</summary>
+    <div class="lbl">Your insurer needs</div>
     <ul>
-      <li>steel or concrete, at least <b>4 cm thick</b> (about two fingers wide)</li>
-      <li><b>fixed into concrete or stone</b>: no bolts you could undo, no loose rack</li>
-      <li>a shape the bike <b>can't be lifted over</b> (a closed hoop, not a short post)</li>
-      <li>never left out for more than 24 hours</li>
+      <li>A lock on your insurer's approved list, under 2 years old when the cover started.</li>
+      <li>The lock goes through the <b>frame</b> and around the stand. A wheel alone does not count.</li>
+      <li>The stand is steel or concrete at least <b>40 mm thick</b> (a golf ball), fixed into concrete or stone.</li>
+      <li>Nothing on it comes apart with a spanner or Allen key.</li>
+      <li>The bike cannot be lifted over the top or slid out underneath.</li>
+      <li>Sign poles, trees, wire fences and wheel-slot racks do not count.</li>
+      <li>Inside a bike cage, still lock through the frame to a fixed steel rail.</li>
+      <li>Back at the bike within <b>24 hours</b>.</li>
+      <li>At a café stop, the bike within 5 m and in your sight counts as attended.</li>
+      <li>For a theft claim: a police report, a lock key, the bike's receipt and proof it was locked.</li>
     </ul>
-    <p><small>The app can't measure a hoop. Green means the data says it is a proper steel stand; confirm the three points above when you get there, then tap "Good hoop" so it's remembered.</small></p>
+    <div class="lbl">Worth doing every time</div>
+    <ul>
+      <li>Photo of the locked bike before you walk away. That is your proof.</li>
+      <li>Take the display with you.</li>
+    </ul>
   </details>
-  <p><small id="foot">Data: OpenStreetMap contributors (includes racks verified on I Rode Here), City of Melbourne open data. Street View opens in Google Maps.</small></p>
+  <footer>
+    <div id="hidden"></div>
+    Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a> · City of Melbourne (CC BY 4.0) · Crime Statistics Agency Victoria · Esri
+  </footer>
 </main>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div id="toast"></div>
+<script src="vendor/leaflet.js"></script>
 <script>
-const $=id=>document.getElementById(id);
-const LS={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
-const COM='https://data.melbourne.vic.gov.au/api/explore/v2.1/catalog/datasets/street-furniture-including-bollards-bicycle-rails-bins-drinking-fountains-horse-/records';
-const GOOD=['stands','wide_stands','bollard','safe_loops','staple','hoop'];
-const THIN=['post_hoop','anchors','streetpod'];
-const SECURE=['building','shed','lockers','cage','bike_locker'];
-const BAD=['wall_loops','ground_slots','rack','handlebar_holder','saddle_holder','floor','front_wheel','wave','crossbar','upright_stands','lean_and_stick'];
-const TYPE_NAME={stands:'Steel hoops',wide_stands:'Wide steel hoops',bollard:'Bike bollard',safe_loops:'Loops with frame bar',wall_loops:'Wheel-only wall loops',ground_slots:'Ground slots (wheel only)',rack:'Wheel rack',building:'Bike room',shed:'Bike shed',lockers:'Bike lockers',cage:'Bike cage',wave:'Wave rack',handlebar_holder:'Handlebar hanger',two_tier:'Two-tier rack',informal:'Informal spot',post_hoop:'Ring on a sign pole'};
-let map,layer,dest=null,lastLabel='';
+'use strict';
+const CFG = {
+  radius: 300, wide: 600, far: 2500, show: 7, merge: 20,
+  base: 50, councilHoop: 12, councilRail: 8, hoop: 5, postHoop: -6, unknown: -12, cage: 4, mine: 10, thumb: 25,
+  indoor: 6, supervised: 8, covered: 2, lit: 3, litLong: 6, camera: 2, big: 2,
+  venue: -4, station: -8, stationM: 100, campus: -8, byDoor: 6,
+  mode: {quick: {act: 1.2, actMax: 8, risk: 0.5, per100m: -5}, hours: {act: 0.6, actMax: 4, risk: 1, per100m: -3.5}, long: {act: 0.3, actMax: 2, risk: 1.5, per100m: -2.5}},
+  tiers: [[100, 'very high', -6], [40, 'high', -3], [5, 'average', 0], [0, 'low', 3]],
+  good: 58, ok: 48
+};
+const FL = {COVERED: 1, LIT: 2, CCTV: 4, FEE: 8, INDOOR: 16, CUSTOMERS: 32, PERMIT: 64, PARKITEER: 128, COUNCIL: 256, SUPERVISED: 512, CAMPUS: 1024};
+const LOCKED = FL.CUSTOMERS | FL.PERMIT | FL.PARKITEER;
+const AG = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/';
+const VIC = '140.95,-39.2,150.05,-33.95';
+const NOSIG = 'No signal. Recent places still work.';
+const $ = id => document.getElementById(id);
+const enc = encodeURIComponent;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const r10 = d => Math.round(d / 10) * 10 || 10;
+const store = {
+  get(k, d) { try { const v = JSON.parse(localStorage.getItem('bp.' + k)); return v == null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('bp.' + k, JSON.stringify(v)); } catch (e) {} }
+};
 
-function dist(a,b,c,d){const R=6371000,t=x=>x*Math.PI/180,p=t(c-a),l=t(d-b),h=Math.sin(p/2)**2+Math.cos(t(a))*Math.cos(t(c))*Math.sin(l/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
-function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-function key(s){return s.lat.toFixed(4)+','+s.lon.toFixed(4)}
-async function getJSON(url,opt,ms=20000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);try{const r=await fetch(url,{...opt,signal:c.signal});if(!r.ok)throw new Error(r.status);return await r.json()}finally{clearTimeout(t)}}
+let SPOTS = [], THEFT = null, VERD = {}, dest = null, mode = store.get('mode', 'quick');
+let results = [], sel = 0, widened = false, confirmed = false, nearest = null, map = null, adding = false, svOpen = '';
+let runId = 0, nameId = 0, goId = 0;
 
-async function geocode(q){
-  const u='https://photon.komoot.io/api/?limit=6&lang=en&lat=-37.8136&lon=144.9631&bbox=144.3,-38.6,145.9,-37.3&q='+encodeURIComponent(q);
-  try{const d=await getJSON(u,{},12000);const out=d.features.map(f=>{const p=f.properties,c=f.geometry.coordinates;
-    const name=[p.name,[p.housenumber,p.street].filter(Boolean).join(' '),p.district||p.city,p.postcode].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(', ');return{name,lat:c[1],lon:c[0]}});
-    if(out.length)return out}catch(e){}
-  const n=await getJSON('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=au&viewbox=144.3,-37.3,145.9,-38.6&bounded=1&q='+encodeURIComponent(q),{},12000);
-  return n.map(x=>({name:x.display_name.split(',').slice(0,4).join(','),lat:+x.lat,lon:+x.lon}));
+/* ---------- data ---------- */
+function loadData() {
+  const p = Promise.all([
+    fetch('data/spots.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+      SPOTS = d.spots.filter(r => r[2] !== 'F' && r[2] !== 'L').map(r => ({
+        lat: r[0], lon: r[1], cls: r[2], kind: r[3], cap: r[4], fl: r[5], label: r[6], act: r[7], cam: r[8],
+        stm: r[9], stn: r[10], src: r[11], ls: r[12] || 0, id: r[0] + ',' + r[1]
+      }));
+    }),
+    fetch('data/theft.json').then(r => r.json()).then(d => { THEFT = d; }).catch(() => {})
+  ]);
+  p.catch(() => {});
+  return p;
 }
-let DATA=null;
-async function loadData(){if(DATA)return DATA;
-  const [r,c]=await Promise.allSettled([getJSON('data/racks.json',{},30000),getJSON('data/ctx.json',{},30000)]);
-  DATA={racks:r.status==='fulfilled'?r.value:null,ctx:c.status==='fulfilled'?c.value:null};return DATA}
-const near=(lat,lon,a,o)=>Math.abs(a-lat)<0.006&&Math.abs(o-lon)<0.008;
-function localRacks(lat,lon,r){return DATA.racks.racks.filter(x=>near(lat,lon,x.a,x.o)&&dist(lat,lon,x.a,x.o)<=r).map(x=>({lat:x.a,lon:x.o,tags:{amenity:'bicycle_parking',bicycle_parking:x.b,capacity:x.c,covered:x.v?'yes':undefined,lit:x.l?'yes':undefined,supervised:x.s===2?'yes':undefined,surveillance:x.s===1?'yes':undefined,access:x.x,fee:x.f?'yes':undefined,check_date:x.k}}))}
-function localCtx(lat,lon,r){const c=DATA.ctx;if(!c)return null;const b=c.bbox;if(lat<b[0]||lat>b[2]||lon<b[1]||lon>b[3])return null;
-  const T={lamp:{highway:'street_lamp'},cam:{man_made:'surveillance'},active:{shop:'yes'},station:{railway:'station'},market:{amenity:'marketplace'}},out=[];
-  for(const k in T){const a=c[k]||[];for(let i=0;i<a.length;i+=2)if(near(lat,lon,a[i],a[i+1])&&dist(lat,lon,a[i],a[i+1])<=r+40)out.push({lat:a[i],lon:a[i+1],tags:T[k]})}
-  return out}
-async function council(lat,lon,r){
-  const w=`type="Bicycle Rails" and within_distance(geo_point_2d, geom'POINT(${lon} ${lat})', ${r}m)`;
-  const d=await getJSON(COM+'?limit=100&select=description,locationdescription,conditionrating,geo_point_2d&where='+encodeURIComponent(w),{},15000);
-  return d.results||[];
+let ready = loadData();
+
+function dist(a, b, c, d) {
+  const R = 6371000, x = (d - b) * Math.PI / 180 * Math.cos((a + c) * Math.PI / 360), y = (c - a) * Math.PI / 180;
+  return Math.sqrt(x * x + y * y) * R;
+}
+function compass(a, b, c, d) {
+  const x = (d - b) * Math.cos(a * Math.PI / 180), y = c - a;
+  const deg = (Math.atan2(x, y) * 180 / Math.PI + 360) % 360;
+  return ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'][Math.round(deg / 45) % 8];
+}
+function allSpots() {
+  const mine = store.get('mine', []).map(m => ({lat: m.lat, lon: m.lon, cls: 'M', kind: 'mine', cap: 0, fl: 0, label: '', act: 0, cam: -1, stm: -1, stn: '', src: 'me', ls: 0, id: m.lat + ',' + m.lon}));
+  return mine.concat(SPOTS);
 }
 
-function build(els,rails,lat,lon,r,ctx=true){
-  const P=e=>({lat:e.lat??e.center?.lat,lon:e.lon??e.center?.lon,t:e.tags||{}});
-  const all=els.map(P).filter(e=>e.lat);
-  const racks=all.filter(e=>e.t.amenity==='bicycle_parking');
-  const lamps=all.filter(e=>e.t.highway==='street_lamp'),cams=all.filter(e=>e.t.man_made==='surveillance');
-  const active=all.filter(e=>e.t.shop||e.t.office||(e.t.amenity&&e.t.amenity!=='bicycle_parking'));
-  const stations=all.filter(e=>e.t.railway==='station');
-  const market=all.filter(e=>e.t.amenity==='marketplace'||e.t.amenity==='cinema');
-  const spots=racks.map(e=>({lat:e.lat,lon:e.lon,t:e.t,src:['OpenStreetMap'],rails:0}));
-  // council hoops: attach to a mapped rack within 15 m, else group into their own spots (8 m clusters)
-  for(const x of rails){const g=x.geo_point_2d;if(!g)continue;
-    let s=spots.find(s=>dist(s.lat,s.lon,g.lat,g.lon)<15);
-    if(!s){s=spots.find(s=>s.council&&dist(s.lat,s.lon,g.lat,g.lon)<8)}
-    if(!s){s={lat:g.lat,lon:g.lon,t:{},src:[],rails:0,council:true,where:x.locationdescription,desc:x.description};spots.push(s)}
-    if(!s.src.includes('City of Melbourne register'))s.src.push('City of Melbourne register');
-    s.rails++;s.cond=x.conditionrating;s.desc=s.desc||x.description}
-  const mine=LS.get('bp_verified',{});
-  for(const s of spots){
-    const t=s.t,bp=(t.bicycle_parking||'').toLowerCase(),why=[];let sc=50,cls;
-    s.d=dist(lat,lon,s.lat,s.lon);
-    const councilHoop=s.src.includes('City of Melbourne register');
-    if(GOOD.includes(bp)||councilHoop){cls='ok';sc+=20;why.push(councilHoop?`Council steel hoop${s.rails>1?'s ('+s.rails+')':''} on the City of Melbourne register`:(TYPE_NAME[bp]||bp)+': frame can be locked')}
-    else if(THIN.includes(bp)){cls='chk';sc+=8;why.push((TYPE_NAME[bp]||bp)+': holds the frame, but the ring is often thinner than 4 cm, so measure it or lock around the pole')}
-    else if(SECURE.includes(bp)){cls='chk';sc+=22;why.push((TYPE_NAME[bp]||bp)+': secure, but check you can get in and what you lock to inside')}
-    else if(BAD.includes(bp)){cls='no';sc-=40;why.push((TYPE_NAME[bp]||bp)+': does not hold the frame, so it fails the insurance rule')}
-    else{cls='chk';why.push(bp?`Stand type "${bp}": look before trusting it`:'Stand type not recorded: look before trusting it')}
-    s.title=councilHoop&&!bp?'Council steel hoop'+(s.rails>1?'s':''):(TYPE_NAME[bp]||'Bike parking');
-    if(GOOD.includes(bp)&&councilHoop){sc+=8}
-    const acc=t.access;if(acc&&!['yes','permissive','public'].includes(acc)){sc-=12;why.push('Access: '+acc)}
-    if(t.fee==='yes'){why.push('Paid')}
-    if(t.covered==='yes'){sc+=4;why.push('Under cover')}
-    const lamp=lamps.some(l=>dist(l.lat,l.lon,s.lat,s.lon)<20);
-    if(t.lit==='yes'||lamp){sc+=6;why.push('Street light close by')}
-    const cam=cams.some(c=>dist(c.lat,c.lon,s.lat,s.lon)<30);
-    if(cam||['yes','cctv','camera'].includes(t.surveillance)||t.supervised==='yes'){sc+=9;why.push(t.supervised==='yes'?'Supervised':'Camera mapped nearby')}
-    const n=active.filter(a=>dist(a.lat,a.lon,s.lat,s.lon)<35).length;
-    if(n){sc+=Math.min(14,n*2);why.push(n+' shop'+(n>1?'s':'')+' or venue'+(n>1?'s':'')+' within 35 m (people watching)')}else if(ctx){sc-=6;why.push('No shopfronts mapped within 35 m')}
-    if(stations.some(a=>dist(a.lat,a.lon,s.lat,s.lon)<70)){sc-=10;why.push('At a train station: racks here are a known theft spot')}
-    if(market.some(a=>dist(a.lat,a.lon,s.lat,s.lon)<50)){sc-=5;why.push('Market or cinema next door: bikes sit unattended for hours here')}
-    const cap=+t.capacity;if(cap>=2)why.push('Room for about '+cap+' bikes');
-    sc-=Math.min(14,s.d/20);
-    if(t.check_date||t['survey:date'])why.push('Checked on the ground '+(t.check_date||t['survey:date']));
-    const v=mine[key(s)];
-    if(v){if(v.ok){cls='ok';sc+=30;why.unshift('✓ You checked this one'+(v.note?': '+v.note:''))}else{cls='no';sc-=60;why.unshift('✗ You rejected this one'+(v.note?': '+v.note:''))}}
-    s.cls=cls;s.sc=Math.round(sc);s.why=why;s.v=v;
+/* ---------- address lookup ---------- */
+async function getJSON(url, ms) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms || 8000);
+  try { const r = await fetch(url, {signal: c.signal}); if (!r.ok) throw new Error(r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+function bias() { return dest || store.get('here', null) || {lat: -37.8136, lon: 144.9631}; }
+function longForm(q) {
+  return q.replace(/\brd\b/gi, 'road').replace(/\bave?\b/gi, 'avenue').replace(/\bpde\b/gi, 'parade').replace(/\bhwy\b/gi, 'highway').replace(/\bcres\b/gi, 'crescent');
+}
+function photonPlace(f) {
+  const p = f.properties, addr = [p.housenumber, p.street].filter(Boolean).join(' ');
+  const sub = p.district || p.locality || p.city || '';
+  const parts = [p.name || addr, p.name && addr !== p.name ? addr : '', sub, p.postcode].filter(Boolean);
+  return {text: [...new Set(parts)].join(', '), lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], sub: [p.district, p.locality, p.city].filter(Boolean), pc: p.postcode || ''};
+}
+// The main lookup does not know train stations, so those come from the map data.
+async function stations(q) {
+  const m = q.match(/^(.*?)\s*\b(?:railway |train )?station\b/i), name = m ? m[1].trim() : '';
+  if (name.length < 3) return [];
+  const b = bias();
+  try {
+    const d = await getJSON(`https://photon.komoot.io/api/?q=${enc(name)}&limit=3&lang=en&lat=${b.lat}&lon=${b.lon}&bbox=${VIC}&osm_tag=railway:station`, 5000);
+    return d.features.filter(f => (f.properties.name || '').toLowerCase().includes(name.toLowerCase())).slice(0, 2).map(f => {
+      const p = photonPlace(f), n = f.properties.name;
+      p.text = (/station$/i.test(n) ? n : n + ' station') + (p.sub[0] ? ', ' + p.sub[0] : '');
+      return p;
+    });
+  } catch (e) { return []; }
+}
+async function suggest(q) {
+  const b = bias(), st = stations(q);
+  try {
+    const d = await getJSON(`${AG}suggest?f=json&text=${enc(q)}&countryCode=AUS&maxSuggestions=6&searchExtent=${VIC}&location=${b.lon},${b.lat}`, 5000);
+    const s = (d.suggestions || []).filter(x => !x.isCollection).map(x => ({text: x.text.replace(/, AUS$/, '').replace(/, Melbourne, Victoria/, ''), full: x.text, key: x.magicKey}));
+    if (s.length) return (await st).concat(s).slice(0, 6);
+  } catch (e) {}
+  try {
+    const d = await getJSON(`https://photon.komoot.io/api/?q=${enc(longForm(q))}&limit=6&lang=en&lat=${b.lat}&lon=${b.lon}&bbox=${VIC}`, 6000);
+    return (await st).concat(d.features.map(photonPlace)).slice(0, 6);
+  } catch (e) { return st; }
+}
+function agPlace(c, text) {
+  const a = c.attributes || {};
+  return {text: text || (a.PlaceName ? a.PlaceName + ', ' : '') + (a.ShortLabel || c.address), lat: c.location.y, lon: c.location.x, sub: [a.Nbrhd, a.District, a.City].filter(Boolean), pc: a.Postal || ''};
+}
+// A place, null when nothing matches, or {fail: true} when neither lookup could be reached.
+async function resolve(s) {
+  if (s.lat != null) return s;
+  const b = bias();
+  let fails = 0;
+  if (!s.key) { const st = await stations(s.text); if (st.length) return st[0]; }
+  try {
+    const d = await getJSON(`${AG}findAddressCandidates?f=json&singleLine=${enc(s.full || s.text)}${s.key ? '&magicKey=' + enc(s.key) : ''}&countryCode=AUS&maxLocations=1&searchExtent=${VIC}&location=${b.lon},${b.lat}&outFields=PlaceName,ShortLabel,Nbrhd,District,City,Postal`);
+    const c = d.candidates && d.candidates[0];
+    if (c && (s.key || c.score >= 80)) return agPlace(c, s.key ? s.text : '');
+  } catch (e) { fails++; }
+  try {
+    const d = await getJSON(`https://nominatim.openstreetmap.org/search?q=${enc(s.text)}&format=jsonv2&addressdetails=1&countrycodes=au&limit=1&viewbox=140.95,-33.95,150.05,-39.2&bounded=1`);
+    if (d.length) {
+      const a = d[0].address || {};
+      return {text: d[0].display_name.split(',').slice(0, 3).join(','), lat: +d[0].lat, lon: +d[0].lon, sub: [a.suburb, a.town, a.city, a.village].filter(Boolean), pc: a.postcode || ''};
+    }
+  } catch (e) { fails++; }
+  return fails === 2 ? {fail: true} : null;
+}
+async function reverse(lat, lon) {
+  try {
+    const d = await getJSON(`${AG}reverseGeocode?f=json&location=${lon},${lat}&langCode=en`, 6000);
+    const a = d.address;
+    if (a) return {name: a.PlaceName || a.Address || a.ShortLabel || '', addr: a.Address || a.ShortLabel || '', sub: [a.Neighborhood, a.District, a.City].filter(Boolean), pc: a.Postal || ''};
+  } catch (e) {}
+  try {
+    const d = await getJSON(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&zoom=17&format=jsonv2&addressdetails=1`, 6000);
+    const a = d.address || {}, name = [a.house_number, a.road].filter(Boolean).join(' ');
+    return {name, addr: name, sub: [a.suburb, a.town, a.city, a.village].filter(Boolean), pc: a.postcode || ''};
+  } catch (e) { return null; }
+}
+
+/* ---------- area theft ---------- */
+function area(place) {
+  if (!THEFT || !place.pc) return null;
+  for (const s of place.sub || []) {
+    const n = THEFT.suburb[place.pc + '|' + s.toLowerCase()];
+    if (n != null) return tier(s, n);
   }
-  const rank={ok:0,chk:1,no:2};
-  return spots.filter(s=>s.d<=r).sort((a,b)=>rank[a.cls]-rank[b.cls]||b.sc-a.sc);
+  if (THEFT.postcode[place.pc] != null) return tier('postcode ' + place.pc, THEFT.postcode[place.pc]);
+  return null;
+}
+function tier(name, n) {
+  const t = CFG.tiers.find(x => n >= x[0]);
+  return {name, n, word: t[1], pts: t[2]};
 }
 
-function render(spots,label,lat,lon,r,srcNote){
-  const ok=spots.filter(s=>s.cls==='ok'),chk=spots.filter(s=>s.cls==='chk');
-  const best=ok[0]||chk[0];
-  $('headline').textContent=!spots.length?`No bike parking mapped within ${r} m.`:ok.length?`Best: ${ok[0].title.toLowerCase()}, ${Math.round(ok[0].d)} m away`:chk.length?`Nothing confirmed. Closest to check: ${Math.round(chk[0].d)} m away`:`Only unsuitable racks within ${r} m.`;
-  $('status').innerHTML=`<b>${esc(label)}</b><br>${srcNote} · within ${r} m · ${ok.length} likely OK, ${chk.length} to check, ${spots.length-ok.length-chk.length} unsuitable`;
-  $('list').innerHTML=spots.slice(0,25).map((s,i)=>{
-    const badge={ok:'Likely OK',chk:'Check first',no:'Not suitable'}[s.cls],ll=s.lat.toFixed(6)+','+s.lon.toFixed(6);
-    return `<div class="card ${s.cls}"><h3><span class="badge">${badge}</span>${esc(s.title)}</h3>
-    <div class="meta">${Math.round(s.d)} m from your spot · safety score ${Math.max(0,Math.min(100,s.sc))}/100${s.where?' · '+esc(s.where.split(',')[0]):''}</div>
-    <ul class="why">${s.why.map(w=>'<li>'+esc(w)+'</li>').join('')}</ul>
-    <div class="acts"><a target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${ll}">Street View</a>
-    <a target="_blank" rel="noopener" href="https://maps.apple.com/?daddr=${ll}&dirflg=w">Walk there</a>
-    <button data-v="1" data-k="${key(s)}" class="${s.v&&s.v.ok?'sel':''}">✓ Good hoop</button><button data-v="0" data-k="${key(s)}" class="${s.v&&!s.v.ok?'sel':''}">✗ No good</button></div></div>`}).join('')
-    +(spots.length?`<div class="acts" style="margin:14px 0"><button id="save">★ Save "${esc(label.split(',')[0])}" to my places</button><a target="_blank" rel="noopener" href="https://irodehere.com">Photos on I Rode Here</a></div>`:'');
-  $('map').style.display='block';
-  if(!map){map=L.map('map',{zoomControl:false,attributionControl:false});L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);layer=L.layerGroup().addTo(map)}
-  layer.clearLayers();
-  L.marker([lat,lon]).addTo(layer).bindPopup('You are going here');
-  const col={ok:'#12813f',chk:'#b26a00',no:'#b3261e'};
-  spots.slice(0,40).forEach(s=>L.circleMarker([s.lat,s.lon],{radius:s===best?11:7,color:'#fff',weight:2,fillColor:col[s.cls],fillOpacity:1}).addTo(layer).bindPopup(esc(s.title)+' · '+Math.round(s.d)+' m'));
-  const pts=[[lat,lon],...spots.slice(0,8).map(s=>[s.lat,s.lon])];
-  map.invalidateSize();map.fitBounds(L.latLngBounds(pts).pad(0.25),{maxZoom:18});
+/* ---------- ranking ---------- */
+// 0 = open hoop stands (or one you marked good), 1 = cage or unknown type, 2 = needs a card, pass or purchase
+function group(s) {
+  if (VERD[s.id] === 'good') return 0;
+  if (s.fl & LOCKED) return 2;
+  return s.cls === 'H' || s.cls === 'M' ? 0 : 1;
+}
+function score(s, d) {
+  const M = CFG.mode[mode], why = [], thumb = VERD[s.id] === 'good', inside = s.cls === 'S';
+  let v = CFG.base;
+  const add = (pts, text, kind, rank) => { v += pts; if (text) why.push([kind || (pts > 0 ? 'p' : pts < 0 ? 'm' : 'n'), text, rank || Math.abs(pts)]); };
+  if (s.fl & FL.PARKITEER) add(0, 'Opens only with a Parkiteer card registered for this station', 'm', 99);
+  else if (s.fl & FL.PERMIT) add(0, 'Needs a pass or key', 'm', 99);
+  if (s.fl & FL.CUSTOMERS) add(0, 'For customers of the building', 'm', 98);
+  if (s.fl & FL.FEE) add(0, 'Paid', 'n', 97);
+  if (s.cls === 'M') add(CFG.mine, 'A stand you saved');
+  else if (s.kind === 'council_hoop') add(CFG.councilHoop, 'Stainless steel hoops (council record)');
+  else if (s.kind === 'council_rail') add(CFG.councilRail, 'Steel bike rails (council record)');
+  else if (s.cls === 'H') add(CFG.hoop, 'Mapped as hoop stands');
+  else if (inside) add(CFG.cage, s.kind === 'room' ? 'Bike room: lock to a fixed rail inside' : 'Bike cage: lock to a fixed rail inside', 'n');
+  else if (s.kind === 'post_hoop') add(CFG.postHoop, 'Ring-on-a-post or bollard: often too thin or too fat for the lock');
+  else add(CFG.unknown, s.kind === 'shed' ? 'Bike shelter: the stand inside is not recorded' : 'Stand type is not recorded');
+  if (thumb) add(CFG.thumb, 'You checked this one and marked it good');
+  if (s.fl & FL.SUPERVISED) add(CFG.supervised, 'Staffed or supervised');
+  if (s.fl & FL.INDOOR) add(CFG.indoor, 'Inside a building', inside ? 'n' : '');
+  if (s.fl & FL.COVERED) add(CFG.covered, 'Under cover');
+  if (s.fl & FL.LIT) add(mode === 'long' ? CFG.litLong : CFG.lit, 'Lit at night');
+  if ((s.fl & FL.CCTV) || s.cam >= 0) add(CFG.camera, s.cam >= 0 ? `Camera ${Math.max(5, Math.round(s.cam / 5) * 5)} m away` : 'Under camera');
+  if (s.cap >= 6) add(CFG.big, `Room for about ${s.cap} bikes`);
+  if (s.act > 0) { const a = Math.min(M.actMax, s.act * M.act); if (a >= 1.5) add(a, s.act >= 6 ? 'Busy shopfronts right beside it' : 'Shops or cafés beside it'); else v += a; }
+  else if (s.cls !== 'M') add(-1, 'Nothing open nearby to keep eyes on it');
+  if (s.ls > 0 && !inside) add(CFG.venue * M.risk, 'Beside a pub, gym, cinema or market: bikes sit here for hours and thieves know it');
+  if (s.stm >= 0 && s.stm <= CFG.stationM && !inside) {
+    const stn = s.stn ? (/station$/i.test(s.stn) ? s.stn : s.stn + ' station') : 'A train station';
+    add(CFG.station * M.risk, `${esc(stn)} ${r10(s.stm)} m away: station racks are hit the most`);
+  }
+  if (s.fl & FL.CAMPUS) add(CFG.campus * M.risk, 'On a university or TAFE campus, a theft hotspot');
+  if (mode === 'quick' && d <= 25) add(CFG.byDoor, 'Right by the door');
+  v += M.per100m * d / 100;
+  if (dest && dest.area && dest.area.pts) add(dest.area.pts, dest.area.pts > 0 ? 'Low bike-theft suburb' : `${dest.area.word[0].toUpperCase() + dest.area.word.slice(1)} bike-theft suburb`);
+  v = Math.max(0, Math.min(100, Math.round(v)));
+  // "Good spot" is kept for council stainless hoops and stands you have checked yourself.
+  const sure = thumb || s.kind === 'council_hoop';
+  const grade = v >= CFG.good && sure ? 'good' : v >= CFG.ok ? 'ok' : 'bad';
+  let word = grade === 'good' ? 'Good spot' : grade === 'bad' ? 'Last resort' : 'Likely OK';
+  if (!thumb && grade === 'ok') {
+    if (s.fl & FL.PARKITEER) word = 'Card needed';
+    else if (s.fl & FL.PERMIT) word = 'Pass needed';
+    else if (s.fl & FL.CUSTOMERS) word = 'Customers only';
+    else if (s.cls === 'U' || inside) word = 'Check first';
+  }
+  why.sort((a, b) => b[2] - a[2]);
+  return {v, why, grade, word};
+}
+function title(s) {
+  if (s.cls === 'M') return 'Your stand';
+  if (s.cls === 'S') return s.fl & FL.PARKITEER ? 'Parkiteer cage' : s.kind === 'room' ? 'Bike room' : 'Bike cage';
+  return {council_hoop: 'Council steel hoops', council_rail: 'Council bike rails', hoop: 'Hoop stands', post_hoop: 'Post-and-ring stand', shed: 'Bike shelter'}[s.kind] || 'Bike parking, type unknown';
+}
+function typeLine(s) {
+  if (VERD[s.id] === 'good') return 'You have checked this stand yourself.';
+  if (s.cls === 'M') return 'Your own saved stand. Tap 👍 once you have checked it up close.';
+  if (s.kind === 'council_hoop') return 'The type most likely to fit the rule. Check the tube is golf-ball thick.';
+  if (s.kind === 'council_rail') return 'Check the tube is golf-ball thick and the base has no bolts.';
+  if (s.cls === 'H') return 'Check the thickness and the base before you lock.';
+  if (s.cls === 'S') return 'The cage itself does not count. Lock through the frame to a fixed steel rail inside.';
+  if (s.kind === 'post_hoop') return 'Lock only if the steel is golf-ball thick, set in concrete, and the lock closes around it.';
+  if (s.kind === 'shed') return 'Look for a fixed steel hoop inside before you ride there.';
+  return 'Look at it on Street View before you ride there.';
+}
+function find() {
+  VERD = store.get('verdict', {});
+  const near = [];
+  for (const s of allSpots()) {
+    if (Math.abs(s.lat - dest.lat) > 0.03 || Math.abs(s.lon - dest.lon) > 0.04 || VERD[s.id] === 'bad') continue;
+    const d = dist(dest.lat, dest.lon, s.lat, s.lon);
+    if (d <= CFG.far) near.push({s, d, g: group(s)});
+  }
+  let pool = near.filter(x => x.d <= CFG.radius);
+  widened = !pool.some(x => x.g === 0);
+  if (widened) pool = near.filter(x => x.d <= CFG.wide);
+  confirmed = pool.some(x => x.g === 0);
+  const ranked = pool.map(x => Object.assign(x, score(x.s, x.d))).sort((a, b) => a.g - b.g || b.v - a.v || a.d - b.d);
+  results = [];
+  for (const x of ranked) {
+    if (results.length >= CFG.show) break;
+    if (results.some(y => y.g === x.g && y.s.cls === x.s.cls && dist(y.s.lat, y.s.lon, x.s.lat, x.s.lon) <= CFG.merge)) continue;
+    results.push(x);
+  }
+  // Stands you saved yourself always make the list.
+  for (const x of ranked) {
+    if (x.s.cls !== 'M' || results.includes(x)) continue;
+    if (results.length >= CFG.show) { let i = results.length - 1; while (i > 0 && results[i].s.cls === 'M') i--; results.splice(i, 1); }
+    results.push(x);
+  }
+  results.sort((a, b) => a.g - b.g || b.v - a.v || a.d - b.d);
+  nearest = confirmed ? null : near.filter(x => x.g === 0).sort((a, b) => a.d - b.d)[0] || null;
 }
 
-async function search(lat,lon,label){
-  dest={lat,lon,label};lastLabel=label;$('pick').innerHTML='';$('list').innerHTML='';$('headline').textContent='';
-  $('status').textContent='Checking racks around '+label+'…';
-  const id=(window._run=(window._run||0)+1);let els=[],rails=[],note=[];
-  const [d,c]=await Promise.allSettled([loadData(),council(lat,lon,500)]);
-  if(id!==window._run)return;
-  const haveMap=d.status==='fulfilled'&&DATA.racks;
-  if(haveMap){els=localRacks(lat,lon,500);note.push('Street map ✓')}else note.push('Street map unavailable');
-  if(c.status==='fulfilled'){rails=c.value;note.push(rails.length?'Council register ✓':'Outside the City of Melbourne register')}else note.push('Council register unavailable');
-  if(!haveMap&&c.status!=='fulfilled'){$('status').textContent='Both data sources failed. Check your connection and try again.';return}
-  const cx=haveMap?localCtx(lat,lon,500):null,ctx=!!cx;if(ctx)els=els.concat(cx);
-  note.push(ctx?'Surroundings ✓':'surroundings not covered here (ranked on stand type and distance)');
-  let r=250;if(!build(els,rails,lat,lon,r,ctx).some(s=>s.cls==='ok'))r=500;
-  window._last={els,rails,lat,lon,r,label,ctx,note:note.join(' · ')};rerender();
+/* ---------- rendering ---------- */
+const walk = d => Math.max(1, Math.round(d * 1.3 / 80));
+const ride = p => `https://maps.apple.com/directions?destination=${p.lat},${p.lon}&mode=cycling`;
+const rideG = p => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=bicycling`;
+function spotName(x) {
+  const names = store.get('names', {});
+  return x.s.label || (names[x.s.id] ? 'Near ' + names[x.s.id] : '');
 }
-function rerender(){const l=window._last;if(l)render(build(l.els,l.rails,l.lat,l.lon,l.r,l.ctx),l.label,l.lat,l.lon,l.r,l.note)}
+function whereTo(x) { return x.d < 15 ? 'At the door' : `${r10(x.d)} m ${compass(dest.lat, dest.lon, x.s.lat, x.s.lon)} of the door`; }
+function cardHTML(x, top) {
+  const s = x.s;
+  return `<article class="card top ${x.grade}">
+    <span class="badge">${top ? (x.grade === 'good' ? 'Park here · ' : 'Best nearby · ') : ''}${x.word}</span>
+    <h2>${title(s)}</h2>
+    <div class="dist"><span id="nm">${esc(spotName(x))}</span>${whereTo(x)}${x.d < 15 ? '' : ' · ' + walk(x.d) + ' min walk'}</div>
+    <div class="type">${typeLine(s)}</div>
+    <ul class="why">${x.why.slice(0, 6).map(w => `<li class="${w[0]}">${w[1]}</li>`).join('')}</ul>
+    <div class="arrive"><b>Before you walk away</b><ol>
+      <li>Tube as fat as a golf ball.</li>
+      <li>Set in concrete or stone. No bolts a spanner or Allen key could undo.</li>
+      <li>Shake it: no wobble, and the bike can't lift over the top.</li>
+      <li>Lock through the frame and around the stand.</li>
+      <li>Photo of the locked bike.</li>
+      <li>${mode === 'long' ? 'Take the display. ' : ''}Back within 24 hours.</li>
+    </ol></div>
+    <div class="row"><button class="pri" id="look">Look at it</button><a class="pri" href="${ride(s)}" target="_blank" rel="noopener">Directions</a></div>
+    <div id="svbox"></div>
+    <div class="row"><button id="vgood" class="${VERD[s.id] === 'good' ? 'on' : ''}">👍 Good</button><button id="vbad">${s.cls === 'M' ? '🗑 Remove' : '👎 No good'}</button><a href="${rideG(s)}" target="_blank" rel="noopener">Google Maps</a></div>
+  </article>`;
+}
+function svHTML(p) {
+  return `<iframe class="sv" loading="lazy" allow="accelerometer; gyroscope; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?layer=c&cbll=${p.lat},${p.lon}&cbp=12,0,0,0,0&output=svembed"></iframe>
+    <div class="svnote">Drag the picture to look around. <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${p.lat},${p.lon}" target="_blank" rel="noopener">Open in Google Maps</a></div>`;
+}
+function paintSV() {
+  const x = results[sel];
+  if ($('svbox')) $('svbox').innerHTML = svOpen === 'spot' && x ? svHTML(x.s) : '';
+  if ($('doorsv')) $('doorsv').innerHTML = svOpen === 'door' ? svHTML(dest) : '';
+  if ($('look')) $('look').textContent = svOpen === 'spot' ? 'Hide Street View' : 'Look at it';
+  if ($('doorbtn')) $('doorbtn').textContent = svOpen === 'door' ? 'Hide Street View' : 'Look around the door';
+}
+function whereHTML() {
+  const t = dest.area;
+  return `Near <b>${esc(dest.text)}</b>${t ? `<span class="tier">Bike theft in ${esc(t.name)}: <b>${t.word}</b>${t.n >= 1 ? ` (about ${Math.round(t.n)} reported a year)` : ''}</span>` : ''}`;
+}
+function render() {
+  const out = $('out');
+  if (!dest) {
+    const rec = store.get('recent', []);
+    out.innerHTML = `<p class="hint">Type where you are going. It shows the best place to lock up near the door.</p>` +
+      (rec.length ? `<div class="lbl">Recent</div><div class="recent">${rec.map((r, i) => `<button data-r="${i}">${esc(r.text)}</button>`).join('')}</div>` : '');
+    return;
+  }
+  const far = nearest ? `The nearest hoop stands on the map are <b>${(nearest.d / 1000).toFixed(1)} km</b> ${compass(dest.lat, dest.lon, nearest.s.lat, nearest.s.lon)}.` : '';
+  let h = `<div class="where" id="where">${whereHTML()}</div>`;
+  if (!navigator.onLine) h += `<p class="hint">No signal: the map picture and Street View need it. The stand list still works.</p>`;
+  if (results.length) {
+    if (!confirmed) h += `<div class="warn"><b>No hoop stand on the map within ${CFG.wide} m.</b> The places below are unconfirmed, so look before you ride there. ${far}${nearest ? ` <a href="${ride(nearest.s)}" target="_blank" rel="noopener">Directions to those</a>` : ''}</div>`;
+    else if (widened) h += `<p class="hint">No hoop stands within ${CFG.radius} m. These are the closest.</p>`;
+    h += cardHTML(results[sel], sel === 0);
+  } else {
+    h += `<article class="card top bad none"><h2>No stand on the map near here</h2>
+      <p>Nothing within ${CFG.wide} m. Keep the bike with you${nearest ? ', or ride to the nearest hoops' : ''}.</p>
+      ${nearest ? `<p>${far}</p><div class="row"><a class="pri" target="_blank" rel="noopener" href="${ride(nearest.s)}">Directions to those</a></div>` : ''}
+      <p>Tap <b>Look around the door</b> under the map to spot a hoop the map has missed, then add it so it shows next time.</p></article>`;
+  }
+  h += `<div id="map"></div><div class="mapbar"><button id="addbtn" class="${adding ? 'on' : ''}">${adding ? 'Tap the map where the stand is' : '＋ Add a stand I’ve seen'}</button><button id="doorbtn">Look around the door</button></div><div id="doorsv"></div>
+    <p class="hint">Wrong door? Hold the blue pin and drag it.</p>`;
+  if (results.length > 1) {
+    h += `<div class="lbl">All options</div>` + results.map((x, i) => `<button class="opt" data-i="${i}"><span class="n ${x.grade}">${i + 1}</span><span class="t"><span class="nmi">${esc(spotName(x) || whereTo(x))}</span><small>${title(x.s)} · ${x.word} · ${r10(x.d)} m</small></span></button>`).join('');
+  }
+  out.innerHTML = h;
+  paintSV();
+  drawMap();
+  nameSpots();
+  const n = Object.values(VERD).filter(v => v === 'bad').length;
+  $('hidden').innerHTML = n ? `<button class="link" id="unhide">Bring back ${n} hidden stand${n > 1 ? 's' : ''}</button><br><br>` : '';
+}
+function drawMap() {
+  if (map) { map.remove(); map = null; }
+  map = L.map('map', {zoomControl: true, attributionControl: false}).setView([dest.lat, dest.lon], 17);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(map);
+  const pts = [[dest.lat, dest.lon]];
+  const door = L.marker([dest.lat, dest.lon], {draggable: true, zIndexOffset: 500, icon: L.divIcon({className: '', html: '<div class="pinw"><div class="door"></div></div>', iconSize: [40, 40], iconAnchor: [20, 35]})}).addTo(map);
+  // Rebuild after Leaflet has finished its own drag handling.
+  door.on('dragend', () => { const p = door.getLatLng(); setTimeout(() => {
+    goId++;
+    dest = {text: 'the blue pin', lat: p.lat, lon: p.lng, sub: [], pc: ''};
+    $('q').value = ''; sel = 0; svOpen = ''; run(true);
+  }, 0); });
+  results.forEach((x, i) => {
+    pts.push([x.s.lat, x.s.lon]);
+    L.marker([x.s.lat, x.s.lon], {icon: L.divIcon({className: '', html: `<div class="pinw"><div class="pin ${x.grade}${i === sel ? ' sel' : ''}">${i + 1}</div></div>`, iconSize: [40, 40], iconAnchor: [20, 20]}), zIndexOffset: i === sel ? 400 : 0})
+      .addTo(map).on('click', () => { if (!adding) pick(i); });
+  });
+  if (pts.length > 1) map.fitBounds(pts, {padding: [34, 34], maxZoom: 18});
+  map.on('click', e => {
+    if (!adding) return;
+    const mine = store.get('mine', []), m = {lat: +e.latlng.lat.toFixed(5), lon: +e.latlng.lng.toFixed(5)};
+    mine.push(m); store.set('mine', mine);
+    adding = false; svOpen = ''; toast('Stand saved on this phone'); refresh(m.lat + ',' + m.lon);
+  });
+}
+async function nameSpots() {
+  const my = ++nameId, names = store.get('names', {});
+  for (const x of results.slice(0, 4)) {
+    if (x.s.label || names[x.s.id]) continue;
+    const r = await reverse(x.s.lat, x.s.lon);
+    if (my !== nameId) return;
+    if (r && r.name) {
+      names[x.s.id] = r.name; store.set('names', names);
+      const b = document.querySelector(`.opt[data-i="${results.indexOf(x)}"] .nmi`);
+      if (b) b.textContent = 'Near ' + r.name;
+      if (results[sel] === x && $('nm')) $('nm').textContent = 'Near ' + r.name;
+    }
+  }
+}
+function pick(i) { sel = i; svOpen = ''; render(); $('out').scrollIntoView({behavior: 'smooth', block: 'start'}); }
+function toast(t, stay) {
+  const el = $('toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t);
+  if (!stay) toast.t = setTimeout(() => { el.style.display = 'none'; }, 3200);
+}
+function hideToast() { clearTimeout(toast.t); $('toast').style.display = 'none'; }
 
-function drawSaved(){const s=LS.get('bp_places',[]);$('saved').innerHTML=s.map((p,i)=>`<button type="button" class="chip" data-i="${i}">${esc(p.name)}</button>`).join(' ')}
-$('saved').addEventListener('click',e=>{const i=e.target.dataset.i;if(i==null)return;const p=LS.get('bp_places',[])[i];$('q').value=p.name;search(p.lat,p.lon,p.name)});
-$('saved').addEventListener('contextmenu',e=>{const i=e.target.dataset.i;if(i==null)return;e.preventDefault();const s=LS.get('bp_places',[]);if(confirm('Remove "'+s[i].name+'" from my places?')){s.splice(i,1);LS.set('bp_places',s);drawSaved()}});
-$('f').addEventListener('submit',async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').blur();
-  $('status').textContent='Looking up "'+q+'"…';$('pick').innerHTML='';
-  try{const g=await geocode(q);if(!g.length){$('status').textContent='Couldn\'t find that. Try adding the suburb.';return}
-    if(g.length>1){$('pick').innerHTML='<small>Not the right one? Pick another:</small>'+g.slice(1,5).map((x,i)=>`<button type="button" data-g="${i+1}">${esc(x.name)}</button>`).join('');window._geo=g}
-    await search(g[0].lat,g[0].lon,g[0].name);
-    if(g.length>1){$('pick').innerHTML='<details><summary>Wrong place? Other matches</summary>'+g.slice(1,5).map((x,i)=>`<button type="button" data-g="${i+1}">${esc(x.name)}</button>`).join('')+'</details>'}
-  }catch(err){$('status').textContent='Address lookup failed. Check your connection and try again.'}});
-$('pick').addEventListener('click',e=>{const i=e.target.dataset.g;if(i==null)return;const x=window._geo[i];search(x.lat,x.lon,x.name)});
-$('here').addEventListener('click',()=>{if(!navigator.geolocation){$('status').textContent='Location is not available in this browser.';return}
-  $('status').textContent='Finding where you are…';
-  navigator.geolocation.getCurrentPosition(p=>search(p.coords.latitude,p.coords.longitude,'Where I am now'),()=>{$('status').textContent='Location was blocked. Allow it in Settings, or type the street instead.'},{enableHighAccuracy:true,timeout:15000})});
-$('list').addEventListener('click',e=>{const b=e.target;
-  if(b.id==='save'){const name=prompt('Name for this place',lastLabel.split(',')[0]);if(!name)return;const s=LS.get('bp_places',[]);s.push({name,lat:dest.lat,lon:dest.lon});LS.set('bp_places',s);drawSaved();b.textContent='★ Saved';return}
-  if(b.dataset.k==null)return;const m=LS.get('bp_verified',{}),k=b.dataset.k,ok=b.dataset.v==='1';
-  if(m[k]&&m[k].ok===ok){delete m[k]}else{const note=prompt(ok?'Note for next time (optional), e.g. "outside the cafe window"':'What was wrong with it? (optional)','')||'';m[k]={ok,note,at:new Date().toISOString().slice(0,10)}}
-  LS.set('bp_verified',m);rerender()});
-drawSaved();
-loadData().then(d=>{if(d.racks)$('foot').textContent+=' Street map copy: '+d.racks.date+'.'});
+/* ---------- flow ---------- */
+function refresh(keepId) {
+  find();
+  sel = keepId ? Math.max(0, results.findIndex(r => r.s.id === keepId)) : Math.min(sel, Math.max(0, results.length - 1));
+  render();
+}
+async function run(moved) {
+  try { await ready; }
+  catch (e) {
+    $('out').innerHTML = `<article class="card top bad none"><h2>The stand list did not load</h2><p>Check your signal, then try again.</p><div class="row"><button class="pri" id="retry">Try again</button></div></article>`;
+    return;
+  }
+  const my = ++runId;
+  dest.area = area(dest);
+  refresh();
+  if (moved || !dest.area) {
+    const r = await reverse(dest.lat, dest.lon);
+    if (my !== runId || !r) return;
+    if (moved && (r.addr || r.name)) dest.text = r.addr || r.name;
+    const a = area(r), was = dest.area ? dest.area.pts : 0;
+    if (a) dest.area = a;
+    if (a && a.pts !== was) refresh(results[sel] && results[sel].s.id);
+    else if ($('where')) $('where').innerHTML = whereHTML();
+  }
+}
+async function go(s) {
+  const my = ++goId;
+  $('sugg').hidden = true; $('q').blur();
+  toast('Finding it…', true);
+  const p = await resolve(s);
+  if (my !== goId) return;
+  if (!p || p.fail) { toast(p || !navigator.onLine ? NOSIG : 'Could not find that address. Add the suburb.'); return; }
+  if (p.lat < -39.3 || p.lat > -33.9 || p.lon < 140.9 || p.lon > 150.1) { toast('That is outside Victoria. The stand map covers Victoria only.'); return; }
+  dest = {text: p.text, lat: p.lat, lon: p.lon, sub: p.sub || [], pc: p.pc || ''};
+  sel = 0; svOpen = ''; adding = false;
+  $('q').value = p.text;
+  const rec = store.get('recent', []).filter(r => r.text !== p.text);
+  rec.unshift(dest);
+  store.set('recent', rec.slice(0, 6));
+  hideToast();
+  run();
+  window.scrollTo(0, 0);
+}
+let timer = null, lastS = [], seq = 0;
+$('q').addEventListener('input', () => {
+  clearTimeout(timer);
+  const q = $('q').value.trim();
+  if (q.length < 3) { $('sugg').hidden = true; return; }
+  timer = setTimeout(async () => {
+    const my = ++seq, s = await suggest(q);
+    if (my !== seq) return;
+    lastS = s;
+    if (!s.length && !navigator.onLine) toast(NOSIG);
+    $('sugg').innerHTML = s.map((x, i) => `<button type="button" data-s="${i}">${esc(x.text)}</button>`).join('');
+    $('sugg').hidden = !s.length || document.activeElement !== $('q');
+  }, 300);
+});
+$('sugg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(lastS[+b.dataset.s]); });
+$('form').addEventListener('submit', e => {
+  e.preventDefault(); clearTimeout(timer); seq++;
+  const q = $('q').value.trim();
+  if (q) go({text: q});
+});
+$('near').addEventListener('click', () => {
+  if (!navigator.geolocation) { toast('Location is not available on this phone'); return; }
+  const my = ++goId;
+  toast('Finding you…', true);
+  const ok = async pos => {
+    if (my !== goId) return;
+    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+    store.set('here', {lat, lon});
+    const r = await reverse(lat, lon);
+    if (my !== goId) return;
+    dest = {text: r && (r.addr || r.name) || 'where you are', lat, lon, sub: r ? r.sub : [], pc: r ? r.pc : ''};
+    sel = 0; svOpen = ''; adding = false; $('q').value = ''; hideToast();
+    run();
+  };
+  const fail = (err, second) => {
+    if (my !== goId) return;
+    if (err.code === 1) toast('Location is off for Bike Park. Allow it when asked, or type the address.');
+    else if (!second) navigator.geolocation.getCurrentPosition(ok, e => fail(e, true), {enableHighAccuracy: false, timeout: 10000, maximumAge: 120000});
+    else toast('No GPS fix. Step into the open, or type the address.');
+  };
+  navigator.geolocation.getCurrentPosition(ok, e => fail(e), {enableHighAccuracy: true, timeout: 12000, maximumAge: 30000});
+});
+function setMode(m) {
+  mode = m; store.set('mode', m);
+  document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  if (dest && SPOTS.length) { sel = 0; svOpen = ''; refresh(); }
+}
+$('modes').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
+document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.m === mode));
+$('out').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.r != null) { const r = store.get('recent', [])[+b.dataset.r]; if (r) go(r); return; }
+  if (b.dataset.i != null) { pick(+b.dataset.i); return; }
+  if (b.id === 'retry') { ready = loadData(); run(); return; }
+  const x = results[sel];
+  if (b.id === 'look') { svOpen = svOpen === 'spot' ? '' : 'spot'; paintSV(); }
+  else if (b.id === 'doorbtn') { svOpen = svOpen === 'door' ? '' : 'door'; paintSV(); }
+  else if (b.id === 'vgood' && x) { const v = store.get('verdict', {}); if (v[x.s.id] === 'good') delete v[x.s.id]; else v[x.s.id] = 'good'; store.set('verdict', v); refresh(x.s.id); }
+  else if (b.id === 'vbad' && x) {
+    if (x.s.cls === 'M') { store.set('mine', store.get('mine', []).filter(m => m.lat + ',' + m.lon !== x.s.id)); toast('Removed'); }
+    else { const v = store.get('verdict', {}); v[x.s.id] = 'bad'; store.set('verdict', v); toast('Hidden. It will not be suggested again.'); }
+    sel = 0; svOpen = ''; refresh();
+  }
+  else if (b.id === 'addbtn') { adding = !adding; b.classList.toggle('on', adding); b.textContent = adding ? 'Tap the map where the stand is' : '＋ Add a stand I’ve seen'; if (adding) $('map').scrollIntoView({behavior: 'smooth', block: 'center'}); }
+});
+$('hidden').addEventListener('click', e => {
+  if (e.target.id !== 'unhide') return;
+  const v = store.get('verdict', {}); Object.keys(v).forEach(k => { if (v[k] === 'bad') delete v[k]; }); store.set('verdict', v);
+  if (dest) refresh(); else $('hidden').innerHTML = '';
+});
+document.addEventListener('click', e => { if (!e.target.closest('header')) $('sugg').hidden = true; });
+render();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
