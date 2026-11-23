@@ -160,6 +160,7 @@ const FL = {COVERED: 1, LIT: 2, CCTV: 4, FEE: 8, INDOOR: 16, CUSTOMERS: 32, PERM
 const LOCKED = FL.CUSTOMERS | FL.PERMIT | FL.PARKITEER;
 const AG = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/';
 const VIC = '140.95,-39.2,150.05,-33.95';
+const GP = 'https://places.googleapis.com/v1/', GKEY = 'AIzaSyCA_ir1AMuOaW7O0e8puy16h7shgdz7Y0s';
 const NOSIG = 'No signal. Recent places still work.';
 const $ = id => document.getElementById(id);
 const enc = encodeURIComponent;
@@ -260,20 +261,45 @@ async function stations(q) {
     });
   } catch (e) { return []; }
 }
-// Every lookup at once, best word match first: saved names, train stations, the address book, the map data.
+// Google's business list. One token covers the typing and the pick that ends it.
+let gtok = '', goff = store.get('goff', 0);
+async function goog(path, body) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), 4000);
+  try {
+    const r = await fetch(GP + path, {method: body ? 'POST' : 'GET', signal: c.signal, body: body ? JSON.stringify(body) : undefined,
+      headers: Object.assign({'X-Goog-Api-Key': GKEY}, body ? {'Content-Type': 'application/json'} : {'X-Goog-FieldMask': 'location,addressComponents'})});
+    // Out of the day's allowance, or refused: leave Google alone for a while and let the other lookups answer.
+    if (r.status === 429 || r.status === 403) { goff = Date.now() + (r.status === 429 ? 6 : 1) * 3600e3; store.set('goff', goff); }
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+async function business(q) {
+  if (!GKEY || Date.now() < goff || !words(q).some(w => !/\d/.test(w))) return null;
+  const b = bias();
+  gtok = gtok || (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+  try {
+    const d = await goog('places:autocomplete', {input: q, sessionToken: gtok, includedRegionCodes: ['au'], languageCode: 'en-AU',
+      locationBias: {circle: {center: {latitude: +b.lat.toFixed(2), longitude: +b.lon.toFixed(2)}, radius: 50000}}});
+    return (d.suggestions || []).map(x => x.placePrediction).filter(x => x && x.placeId && / VIC(?: \d{4})?, Australia$/.test(x.text.text))
+      .map(x => ({text: x.text.text.replace(/( VIC)?(?: \d{4})?, Australia$/, ''), gid: x.placeId}));
+  } catch (e) { return null; }
+}
+// Every lookup at once, best word match first: saved names, train stations, Google's list, the address book, the map data.
 async function suggest(q) {
   const b = bias(), out = [], seen = new Set();
   const add = (x, text) => { const k = words(x.text).slice(0, 6).join(' '); if (seen.has(k)) return; seen.add(k); x.miss = missing(q, text || x.text); x.nm = missing(q, x.text.split(',')[0]); x.off = x.own ? -1 : x.mine ? -0.5 : x.nm + words(x.text.split(',')[0]).length / 100; out.push(x); };
   if (words(q).some(w => !NOISE.has(w) && !/\d/.test(w))) store.get('places', []).forEach(p => { if (missing(q, p.name) < 1) add({text: p.name, lat: p.lat, lon: p.lon, sub: p.sub, pc: p.pc, mine: 1, own: words(p.name).join(' ').startsWith(words(q).join(' ')) ? 1 : 0}); });
-  const [st, ag, ph] = await Promise.all([
-    stations(q),
+  const [st, gg, ag, ph] = await Promise.all([
+    stations(q), business(q),
     getJSON(`${AG}suggest?f=json&text=${enc(q)}&countryCode=AUS&maxSuggestions=6&searchExtent=${VIC}&location=${b.lon},${b.lat}`, 5000).then(d => (d.suggestions || []).filter(x => !x.isCollection), () => null),
     getJSON(`https://photon.komoot.io/api/?q=${enc(longForm(q))}&limit=5&lang=en&lat=${b.lat}&lon=${b.lon}&bbox=${VIC}`, 3000).then(d => d.features || [], () => null)]);
   st.forEach(x => { x.own = 1; add(x); });
   (ag || []).forEach(x => add({text: x.text.replace(/, AUS$/, '').replace(/, Melbourne, Victoria/, ''), full: x.text, key: x.magicKey}, x.text));
   (ph || []).forEach(f => { const p = photonPlace(f); add(p, p.text + ' ' + (f.properties.city || '')); });
+  (gg || []).forEach((x, i) => { add(x); x.off = x.nm + 0.5 + i / 100; });   // after the free lookups, in Google's own order: nearest first
   const r = out.sort((x, y) => x.miss - y.miss || (x.miss < 1 ? x.off - y.off : 0)).slice(0, 6);
-  r.fail = !ag && !ph;
+  r.fail = !ag && !ph && !gg;
   return r;
 }
 function agPlace(c, text) {
@@ -286,13 +312,17 @@ async function typed(q) {
   const b = bias();
   const [s, d] = await Promise.all([suggest(q),
     getJSON(`${AG}findAddressCandidates?f=json&singleLine=${enc(q)}&countryCode=AUS&maxLocations=6&searchExtent=${VIC}&location=${b.lon},${b.lat}&outFields=PlaceName,ShortLabel,LongLabel,Nbrhd,District,City,Postal`).catch(() => null)]);
-  const full = s.filter(x => x.miss < 1);
+  const full = s.filter(x => x.miss < 1), free = full.filter(x => !x.gid), g = full.find(x => x.gid);
   if (full.length && full[0].own) return full[0];
   const c = d && (d.candidates || []).filter(c => c.score >= 80 && missing(q, c.attributes.LongLabel || c.address) < 1)
     .map(c => [missing(q, c.attributes.PlaceName || c.attributes.ShortLabel || c.address), c]).sort((x, y) => x[0] - y[0])[0];
-  if (c && (!full.length || c[0] <= full[0].nm)) return agPlace(c[1], '');
-  if (full.length) { const p = await resolve(full[0], true); if (p && !p.fail) return p; }
-  if (c) return agPlace(c[1], '');
+  let p = null;
+  if (c && (!free.length || c[0] <= free[0].nm)) p = agPlace(c[1], '');
+  else if (free.length) { const r = await resolve(free[0], true); if (r && !r.fail) p = r; }
+  if (!p && c) p = agPlace(c[1], '');
+  // Google answers when nothing else has the place, or when the other match is far away and Google has the name too.
+  if (g && (!p || dist(b.lat, b.lon, p.lat, p.lon) > 20000)) { const r = await resolve(g, true); if (r && !r.fail) return r; }
+  if (p) return p;
   let fails = (s.fail ? 1 : 0) + (d ? 0 : 1);
   try {
     const n = await getJSON(`https://nominatim.openstreetmap.org/search?q=${enc(q)}&format=jsonv2&addressdetails=1&countrycodes=au&limit=3&viewbox=140.95,-33.95,150.05,-39.2&bounded=1`);
@@ -307,6 +337,14 @@ async function typed(q) {
 }
 async function resolve(s, only) {
   if (s.lat != null) return s;
+  if (s.gid) {
+    try {
+      const d = await goog('places/' + enc(s.gid) + '?sessionToken=' + enc(gtok)), part = k => (d.addressComponents || []).filter(a => a.types.includes(k)).map(a => a.longText);
+      gtok = '';
+      if (d.location) return {text: s.text, lat: d.location.latitude, lon: d.location.longitude, sub: part('sublocality').concat(part('locality')), pc: part('postal_code')[0] || ''};
+    } catch (e) { gtok = ''; if (only) return {fail: true}; }
+    return only ? null : typed(s.text);
+  }
   if (!s.key) return typed(s.text);
   const b = bias();
   try {
@@ -686,7 +724,7 @@ $('q').addEventListener('input', () => {
 $('sugg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.help) { goId++; seq++; clearTimeout(timer); $('sugg').hidden = true; $('q').blur(); if (pasted($('q').value)) go({text: $('q').value.trim()}); else showLost($('q').value.trim(), lastS.slice(0, 4)); }
-  else go(lastS[+b.dataset.s]);
+  else { clearTimeout(timer); seq++; go(lastS[+b.dataset.s]); }
 });
 $('form').addEventListener('submit', e => {
   e.preventDefault(); clearTimeout(timer); seq++;
