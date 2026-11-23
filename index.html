@@ -793,12 +793,13 @@ $('hidden').addEventListener('click', e => {
 });
 document.addEventListener('click', e => { if (!e.target.closest('header')) $('sugg').hidden = true; });
 render();
-// A link from a calendar note opens straight at a place: #ll=lat,lon&n=name
+// A link from a calendar note opens straight at a place: #ll=lat,lon&n=name&m=quick|hours|long
 function fromLink() {
   const P = new URLSearchParams(location.hash.slice(1)), m = (P.get('ll') || '').match(/^(-?\d{1,2}\.\d+),(-?\d{2,3}\.\d+)$/);
   if (!m) return;
   const at = {lat: +m[1], lon: +m[2]}, n = (P.get('n') || '').trim().slice(0, 80);
   history.replaceState(null, '', location.pathname);
+  if (CFG.mode[P.get('m')]) setMode(P.get('m'));
   go({text: n || ll(at), lat: at.lat, lon: at.lon, sub: [], pc: ''});
 }
 fromLink();
