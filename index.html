@@ -231,6 +231,11 @@ function missing(q, text) {
   const have = [...new Set(words(text))], need = words(q).filter(w => !NOISE.has(w) && !/\d/.test(w));
   return need.reduce((n, w, i) => n + (have.includes(w) ? 0 : i === need.length - 1 && w.length > 1 && have.some(x => x.startsWith(w)) ? 0.5 : 1), 0);
 }
+// How many words of a found name were never typed: a different business that shares a word has some.
+function surplus(q, text) {
+  const had = new Set(words(q));
+  return words(String(text).split(',')[0]).filter(w => !had.has(w) && !NOISE.has(w)).length;
+}
 // A pin or a maps link pasted into the search box.
 function pasted(t) {
   const m = t.match(/^\s*(-?\d{1,2}\.\d+)\s*[, ]\s*(-?\d{2,3}\.\d+)\s*$/);
@@ -321,10 +326,12 @@ async function typed(q) {
   if (c && (!free.length || c[0] <= free[0].nm)) { p = agPlace(c[1], ''); pn = c[0]; }
   else if (free.length) { const r = await resolve(free[0], true); if (r && !r.fail) { p = r; pn = free[0].nm; } }
   if (!p && c) { p = agPlace(c[1], ''); pn = c[0]; }
+  // A name with no street number is a business: a match whose name carries words nobody typed is a guess.
+  const loose = !!p && !/\d/.test(q) && surplus(q, p.text) > 0;
   // Google answers when nothing else has the place, when the other match is far away and Google has the name too,
-  // or when its name holds more of the typed words than the other match's name does.
-  if (g && (!p || dist(b.lat, b.lon, p.lat, p.lon) > 20000 || g.nm < pn)) { const r = await resolve(g, true); if (r && !r.fail) return r; }
-  if (p) return p;
+  // when its name holds more of the typed words than the other match's name does, or when the other match is a guess.
+  if (g && (!p || dist(b.lat, b.lon, p.lat, p.lon) > 20000 || g.nm < pn || loose)) { const r = await resolve(g, true); if (r && !r.fail) return r; }
+  if (p) { if (loose) p.loose = 1; return p; }
   let fails = (s.fail ? 1 : 0) + (d ? 0 : 1);
   try {
     const n = await getJSON(`https://nominatim.openstreetmap.org/search?q=${enc(q)}&format=jsonv2&addressdetails=1&countrycodes=au&limit=3&viewbox=140.95,-33.95,150.05,-39.2&bounded=1`);
@@ -343,7 +350,7 @@ async function resolve(s, only) {
     try {
       const d = await goog('places/' + enc(s.gid) + '?sessionToken=' + enc(gtok)), part = k => (d.addressComponents || []).filter(a => a.types.includes(k)).map(a => a.longText);
       gtok = '';
-      if (d.location) return {text: s.text, lat: d.location.latitude, lon: d.location.longitude, sub: part('sublocality').concat(part('locality')), pc: part('postal_code')[0] || ''};
+      if (d.location) return {via: 'g', text: s.text, lat: d.location.latitude, lon: d.location.longitude, sub: part('sublocality').concat(part('locality')), pc: part('postal_code')[0] || ''};
     } catch (e) { gtok = ''; if (only) return {fail: true}; }
     return only ? null : typed(s.text);
   }
