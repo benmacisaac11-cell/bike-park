@@ -1,4 +1,4 @@
-const V = 'bikepark-v10';
+const V = 'bikepark-v11';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'vendor/leaflet.js', 'vendor/leaflet.css',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'data/spots.json', 'data/theft.json'];
 

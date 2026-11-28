@@ -149,7 +149,7 @@ footer a{color:inherit}
 'use strict';
 const CFG = {
   radius: 300, wide: 600, far: 2500, show: 7, merge: 20,
-  base: 50, councilHoop: 12, councilRail: 8, hoop: 5, postHoop: -6, unknown: -12, cage: 4, mine: 10, thumb: 25,
+  base: 50, councilHoop: 12, councilRail: 8, hoop: 5, postHoop: -6, pole: -8, unknown: -12, cage: 4, mine: 10, thumb: 25,
   indoor: 6, supervised: 8, covered: 2, lit: 3, litLong: 6, camera: 2, big: 2,
   venue: -4, station: -8, stationM: 100, campus: -8, byDoor: 6,
   mode: {quick: {act: 1.2, actMax: 8, risk: 0.5, per100m: -5}, hours: {act: 0.6, actMax: 4, risk: 1, per100m: -3.5}, long: {act: 0.3, actMax: 2, risk: 1.5, per100m: -2.5}},
@@ -412,8 +412,11 @@ function score(s, d) {
   else if (s.cls === 'H') add(CFG.hoop, 'Mapped as hoop stands');
   else if (inside) add(CFG.cage, s.kind === 'room' ? 'Bike room: lock to a fixed rail inside' : 'Bike cage: lock to a fixed rail inside', 'n');
   else if (s.kind === 'post_hoop') add(CFG.postHoop, 'Ring-on-a-post or bollard: often too thin or too fat for the lock');
+  else if (s.kind === 'pole') add(CFG.pole, 'A street-sign pole, not a bike stand', 'n');
+  else if (s.kind === 'railing') add(CFG.pole, 'A fixed railing, not a bike stand', 'n');
   else add(CFG.unknown, s.kind === 'shed' ? 'Bike shelter: the stand inside is not recorded' : 'Stand type is not recorded');
   if (thumb) add(CFG.thumb, 'You checked this one and marked it good');
+  if (s.src === 'sv' && !thumb) add(0, 'Found in Street View photos, not on any public list', 'n', 50);
   if (s.fl & FL.SUPERVISED) add(CFG.supervised, 'Staffed or supervised');
   if (s.fl & FL.INDOOR) add(CFG.indoor, 'Inside a building', inside ? 'n' : '');
   if (s.fl & FL.COVERED) add(CFG.covered, 'Under cover');
@@ -448,11 +451,15 @@ function score(s, d) {
 function title(s) {
   if (s.cls === 'M') return 'Your stand';
   if (s.cls === 'S') return s.fl & FL.PARKITEER ? 'Parkiteer cage' : s.kind === 'room' ? 'Bike room' : 'Bike cage';
-  return {council_hoop: 'Council steel hoops', council_rail: 'Council bike rails', hoop: 'Hoop stands', post_hoop: 'Post-and-ring stand', shed: 'Bike shelter'}[s.kind] || 'Bike parking, type unknown';
+  return {council_hoop: 'Council steel hoops', council_rail: 'Council bike rails', hoop: 'Hoop stands', post_hoop: 'Post-and-ring stand', shed: 'Bike shelter', pole: 'Sign pole', railing: 'Fixed railing'}[s.kind] || 'Bike parking, type unknown';
 }
 function typeLine(s) {
   if (VERD[s.id] === 'good') return 'You have checked this stand yourself.';
   if (s.cls === 'M') return 'Your own saved stand. Tap 👍 once you have checked it up close.';
+  if (s.kind === 'pole') return 'Lock around the pole itself, and only if it is thicker than a golf ball, set in concrete, with the sign on top so the lock cannot lift off.';
+  if (s.kind === 'railing') return 'Lock only to a rail thicker than a golf ball that is welded or set in concrete, not bolted.';
+  if (s.src === 'sv' && s.kind === 'post_hoop') return 'Seen in Street View photos. The ring is clamped on, so put the lock around the pole as well.';
+  if (s.src === 'sv' && s.cls === 'H') return 'Seen in Street View photos. Check it is still there, and the thickness and base, before you lock.';
   if (s.kind === 'council_hoop') return 'The type most likely to fit the rule. Check the tube is golf-ball thick.';
   if (s.kind === 'council_rail') return 'Check the tube is golf-ball thick and the base has no bolts.';
   if (s.cls === 'H') return 'Check the thickness and the base before you lock.';
