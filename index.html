@@ -152,7 +152,7 @@ const CFG = {
   base: 50, councilHoop: 12, councilRail: 8, hoop: 5, postHoop: -6, pole: -8, unknown: -12, cage: 4, mine: 10, thumb: 25,
   indoor: 6, supervised: 8, covered: 2, lit: 3, litLong: 6, camera: 2, big: 2,
   venue: -4, station: -8, stationM: 100, campus: -8, byDoor: 6,
-  mode: {quick: {act: 1.2, actMax: 8, risk: 0.5, per100m: -5}, hours: {act: 0.6, actMax: 4, risk: 1, per100m: -3.5}, long: {act: 0.3, actMax: 2, risk: 1.5, per100m: -2.5}},
+  mode: {quick: {act: 1.2, actMax: 8, risk: 0.5, per100m: -5, walk: 6}, hours: {act: 0.6, actMax: 4, risk: 1, per100m: -3.5, walk: 4}, long: {act: 0.3, actMax: 2, risk: 1.5, per100m: -2.5, walk: 2}},
   tiers: [[100, 'very high', -6], [40, 'high', -3], [5, 'average', 0], [0, 'low', 3]],
   good: 58, ok: 48
 };
@@ -481,7 +481,9 @@ function find() {
   widened = !pool.some(x => x.g === 0);
   if (widened) pool = near.filter(x => x.d <= CFG.wide);
   confirmed = pool.some(x => x.g === 0);
-  const ranked = pool.map(x => Object.assign(x, score(x.s, x.d))).sort((a, b) => a.g - b.g || b.v - a.v || a.d - b.d);
+  // Order by the grade less a walking cost: the grade says how good the spot is, the order also counts how far it is.
+  const W = CFG.mode[mode].walk;
+  const ranked = pool.map(x => Object.assign(x, score(x.s, x.d))).map(x => Object.assign(x, {r: x.v - W * x.d / 100})).sort((a, b) => a.g - b.g || b.r - a.r || a.d - b.d);
   results = [];
   for (const x of ranked) {
     if (results.length >= CFG.show) break;
@@ -494,7 +496,7 @@ function find() {
     if (results.length >= CFG.show) { let i = results.length - 1; while (i > 0 && results[i].s.cls === 'M') i--; results.splice(i, 1); }
     results.push(x);
   }
-  results.sort((a, b) => a.g - b.g || b.v - a.v || a.d - b.d);
+  results.sort((a, b) => a.g - b.g || b.r - a.r || a.d - b.d);
   nearest = confirmed ? null : near.filter(x => x.g === 0).sort((a, b) => a.d - b.d)[0] || null;
 }
 
