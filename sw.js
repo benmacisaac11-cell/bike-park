@@ -1,4 +1,4 @@
-const V = 'bikepark-v8';
+const V = 'bikepark-v9';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'vendor/leaflet.js', 'vendor/leaflet.css',
   'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'data/spots.json', 'data/theft.json'];
 
@@ -14,8 +14,8 @@ self.addEventListener('fetch', e => {
   e.respondWith(caches.open(V).then(async c => {
     const hit = await c.match(e.request, {ignoreSearch: true});
     const fresh = fetch(e.request, {cache: 'no-cache'}).then(r => { if (r.ok) c.put(e.request, r.clone()); return r; });
-    // The page itself: newest copy when there is signal, saved copy after 3 seconds or offline.
-    if (e.request.mode === 'navigate') {
+    // The page itself and the stand list: newest copy when there is signal, saved copy after 3 seconds or offline.
+    if (e.request.mode === 'navigate' || u.pathname.includes('/data/')) {
       const slow = new Promise(done => setTimeout(() => done(hit), 3000));
       e.waitUntil(fresh.catch(() => {}));
       return Promise.race([fresh.catch(() => hit), hit ? slow : fresh]).then(r => r || fresh);
